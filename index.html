@@ -116,6 +116,12 @@ input[type="range"]{width:100%; accent-color:var(--teal2); height:32px}
 .badge.none{background:#94a3a8}
 .banner-red{background:#fdecec; border:1px solid #f3b8b8; border-radius:var(--radius); padding:12px 14px; font-size:14px; margin-bottom:12px; color:#7f1d1d}
 .caution{background:#fff8e6; border:1px solid #f0dfae; border-radius:var(--radius); padding:10px 14px; font-size:13px; margin-top:10px}
+.care-item{border-top:1px solid var(--line); padding:10px 0}
+.care-item:first-of-type{border-top:none}
+.care-name{font-weight:700; font-size:15px}
+.care-tag{font-size:12px; color:var(--teal); font-weight:400}
+.care-how{font-size:14px; margin-top:2px}
+.care-dose{font-size:13px; color:var(--sub); margin-top:2px}
 .prop-card{border-left:6px solid var(--warn)}
 .prop-card .ptitle{font-weight:700; font-size:16px}
 .prop-card .preason{font-size:13px; color:var(--sub); margin-top:2px}
@@ -241,6 +247,14 @@ video{width:100%; border-radius:12px; background:#000; margin-top:8px}
       <div class="btnrow"><button id="btn-save-pain">痛みの記録を保存</button></div>
       <div class="saved-note" id="note-pain"></div>
       <p class="small">このアプリは診断はしません。痛さとサインから信号（緑／黄／赤）で目安を示し、赤のときは受診の検討を案内します。</p>
+    </div>
+
+    <div class="card" id="care-card">
+      <h2>部位に合わせたケア</h2>
+      <label class="flabel">部位</label>
+      <select id="care-part"></select>
+      <div id="care-box" style="margin-top:10px"></div>
+      <p class="small">基本の項目は道具を使わず、自宅の壁・床・椅子・階段・タオルだけで行えます。「任意：機器あり」の項目は、低周波治療器を持っている場合のみ行ってください。一般的なケア情報であり、診断や治療ではありません。実施中に痛みが強まる場合は中止してください。</p>
     </div>
 
     <div class="card">
@@ -890,6 +904,73 @@ if (f.lean === '前傾') out.push('前傾が強めの傾向です。胸を張っ
 if (!out.length) out.push('大きな傾向は見られません。今のフォームを維持しましょう。');
 return out;
 }
+/* --- 部位に合わせたケア（道具なし：壁・床・椅子・階段・タオルだけ） --- */
+var CARE_LIB = {
+'脛の内側':[
+{name:'ヒラメ筋ストレッチ（膝を曲げた壁押し）', level:'軽い', when:'ラン後', how:'壁に両手をつき、気になる側の脚を一歩後ろに引いて膝を軽く曲げたまま、かかとを床につけて体重を前にかけます。すねの奥からふくらはぎの下の方が伸びる位置で止めます。', dose:'20〜30秒×2回'},
+{name:'腓腹筋ストレッチ（まっすぐ壁押し）', level:'軽い', when:'ラン後', how:'同じ姿勢で後ろ脚の膝を伸ばし、かかとを床につけたまま前に体重をかけます。ふくらはぎの上の方が伸びます。', dose:'20〜30秒×2回'},
+{name:'タオルギャザー＋足指グーパー', level:'軽い', when:'日常', how:'床に広げたタオルを足指でたぐり寄せます。タオルが手元になければ、足指をギュッと握る（グー）・大きく開く（パー）を繰り返すだけでも構いません。足裏とすねの内側を支える筋肉の補助になります。', dose:'10回×2セット'},
+{name:'片脚バランス', level:'普通', when:'日常', how:'壁や椅子に軽く手を添えて片脚で立ちます。足裏全体で床を感じるようにし、ぐらついたら手で支えます。', dose:'30秒×2回'},
+{name:'低周波治療器（マイクロカレント）', level:'軽い', when:'ラン後・日常', device:true, how:'任意の項目です（機器を持っている場合のみ）。取扱説明書に従い、痛む部位を挟むように電極を貼ってマイクロカレントモードで使用します。リカバリー目的の目安としてラン後に使うのが基本ですが、強さや時間は説明書の目安に従ってください。皮膚に傷がある場所や、痛みが強い日は使用を控えてください。赤判定のときは機器で代用せず、受診を優先してください。', dose:'説明書の目安に従う'}
+],
+'脛の前側':[
+{name:'前脛骨筋ストレッチ（足の甲を床に）', level:'軽い', when:'ラン前後', how:'椅子に座り、片足の甲を床につけて軽く体重をかけます。すねの前側がじんわり伸びる範囲で止めます。', dose:'20秒×2回'},
+{name:'つま先上げエクササイズ', level:'軽い', when:'日常', how:'壁に背をつけて立ち、かかとを支点につま先をゆっくり持ち上げて下ろします。すねの前側の筋肉を使います。', dose:'15回×2セット'},
+{name:'腓腹筋ストレッチ（まっすぐ壁押し）', level:'軽い', when:'ラン後', how:'壁に両手をつき、片脚を後ろに引いて膝を伸ばし、かかとを床につけたまま前に体重をかけます。前側の張りは反対側（ふくらはぎ）の硬さから来ることもあります。', dose:'20〜30秒×2回'},
+{name:'すねの前を手でほぐす', level:'軽い', when:'日常', how:'椅子に座り、すねの骨のすぐ外側にある筋肉を親指で小さく円を描くように軽く押します。強く押しすぎないでください。', dose:'1〜2分'}
+],
+'膝':[
+{name:'大腿四頭筋ストレッチ', level:'軽い', when:'ラン後', how:'立ったまま壁に手をつき、片脚のかかとをお尻に近づけます。太ももの前が伸びます。膝を痛めないよう無理に引きません。', dose:'20〜30秒×2回'},
+{name:'ハムストリングスストレッチ', level:'軽い', when:'ラン後', how:'椅子に浅く座り、片脚を伸ばしてかかとを床につけ、背筋を伸ばしたまま骨盤から前に倒れます。太ももの裏が伸びます。', dose:'20〜30秒×2回'},
+{name:'腸脛靭帯ストレッチ（立位・壁を使います）', level:'軽い', when:'ラン後', how:'壁の横に立ち、壁側の脚をもう一方の脚の後ろでクロスさせ、体を壁側に軽く倒します。太ももの外側が伸びます。', dose:'20〜30秒×2回'},
+{name:'浅いスクワット', level:'普通', when:'日常', how:'椅子の背に軽く手を添え、膝がつま先より前に出ない範囲で浅く沈んで戻ります。痛みが出たら中止してください。', dose:'8〜10回×2セット'},
+{name:'低周波治療器（マイクロカレント）', level:'軽い', when:'ラン後・日常', device:true, how:'任意の項目です（機器を持っている場合のみ）。取扱説明書に従い、痛む部位を挟むように電極を貼ってマイクロカレントモードで使用します。リカバリー目的の目安としてラン後に使うのが基本ですが、強さや時間は説明書の目安に従ってください。皮膚に傷がある場所や、痛みが強い日は使用を控えてください。赤判定のときは機器で代用せず、受診を優先してください。', dose:'説明書の目安に従う'}
+],
+'アキレス腱':[
+{name:'腓腹筋ストレッチ（まっすぐ壁押し）', level:'軽い', when:'ラン後', how:'壁に両手をつき、片脚を後ろに引いて膝を伸ばし、かかとを床につけたまま前に体重をかけます。アキレス腱の上の方が伸びます。', dose:'20〜30秒×2回'},
+{name:'ヒラメ筋ストレッチ（膝を曲げた壁押し）', level:'軽い', when:'ラン後', how:'同じ姿勢で後ろ脚の膝を軽く曲げます。アキレス腱に近い下の方が伸びます。', dose:'20〜30秒×2回'},
+{name:'両脚カーフレイズ', level:'普通', when:'日常', how:'壁に手をついて立ち、両脚でゆっくりかかとを上げて下ろします。反動はつけません。', dose:'10〜15回×2セット'},
+{name:'段差かかと下げ', level:'普通', when:'ラン後', how:'階段の一段目につま先で立ち、かかとを段差より下までゆっくり下ろしてから上げます。手すりや壁で体を支え、痛みが強まる場合は中止してください。', dose:'10回×2セット'},
+{name:'低周波治療器（マイクロカレント）', level:'軽い', when:'ラン後・日常', device:true, how:'任意の項目です（機器を持っている場合のみ）。取扱説明書に従い、痛む部位を挟むように電極を貼ってマイクロカレントモードで使用します。リカバリー目的の目安としてラン後に使うのが基本ですが、強さや時間は説明書の目安に従ってください。皮膚に傷がある場所や、痛みが強い日は使用を控えてください。赤判定のときは機器で代用せず、受診を優先してください。', dose:'説明書の目安に従う'}
+],
+'ふくらはぎ':[
+{name:'腓腹筋ストレッチ（まっすぐ壁押し）', level:'軽い', when:'ラン後', how:'壁に両手をつき、片脚を後ろに引いて膝を伸ばし、かかとを床につけたまま前に体重をかけます。', dose:'20〜30秒×2回'},
+{name:'ヒラメ筋ストレッチ（膝を曲げた壁押し）', level:'軽い', when:'ラン後', how:'同じ姿勢で後ろ脚の膝を軽く曲げます。ふくらはぎの深い部分が伸びます。', dose:'20〜30秒×2回'},
+{name:'段差ストレッチ（階段で）', level:'軽い', when:'ラン後', how:'階段の一段目につま先で立ち、かかとを段差より下にゆっくり下ろして伸ばします。壁や手すりで体を支えてください。', dose:'20〜30秒×2回'},
+{name:'両脚カーフレイズ', level:'普通', when:'日常', how:'壁に手をついて立ち、両脚でゆっくりかかとを上げて下ろします。', dose:'10〜15回×2セット'},
+{name:'低周波治療器（マイクロカレント）', level:'軽い', when:'ラン後・日常', device:true, how:'任意の項目です（機器を持っている場合のみ）。取扱説明書に従い、痛む部位を挟むように電極を貼ってマイクロカレントモードで使用します。リカバリー目的の目安としてラン後に使うのが基本ですが、強さや時間は説明書の目安に従ってください。皮膚に傷がある場所や、痛みが強い日は使用を控えてください。赤判定のときは機器で代用せず、受診を優先してください。', dose:'説明書の目安に従う'}
+],
+'足裏':[
+{name:'丸めたタオルを転がす', level:'軽い', when:'日常', how:'ボール転がしの代わりです。タオルをきつめに丸めて筒状にし、土踏まずの下に置いて前後にゆっくり転がします。体重のかけすぎに注意してください。', dose:'1〜2分'},
+{name:'足指のストレッチ', level:'軽い', when:'日常', how:'椅子に座り、手で足指を軽く反らしたり、指の間に手の指を入れて開いたりします。', dose:'20秒×2回'},
+{name:'タオルギャザー＋足指グーパー', level:'軽い', when:'日常', how:'床に広げたタオルを足指でたぐり寄せます。タオルがなければ足指をグー・パーと開閉する運動だけでも構いません。', dose:'10回×2セット'},
+{name:'ゆっくりかかと上げ', level:'普通', when:'日常', how:'壁に手をついて立ち、足指で床を押す感覚を意識しながらゆっくりかかとを上げて下ろします。', dose:'10回×2セット'}
+],
+'足首':[
+{name:'足首回し', level:'軽い', when:'ラン前後', how:'椅子に座って片足を少し浮かせ、足首で大きな円を描くようにゆっくり回します。反対回しも行います。', dose:'左右各10回'},
+{name:'タオルで足首ほぐし', level:'軽い', when:'日常', how:'脚を伸ばして座り、タオルを足裏にかけて両端を手で持ちます。そのまま足首を内側・外側に軽く倒します。道具の抵抗運動の代わりに、タオルで軽く方向をガイドする程度にします。', dose:'各方向5回×2セット'},
+{name:'つま先上げ・かかと上げ（交互）', level:'軽い', when:'日常', how:'壁に手をついて立ち、つま先上げとかかと上げを交互にゆっくり行います。', dose:'10回×2セット'},
+{name:'片脚バランス', level:'普通', when:'日常', how:'壁や椅子に軽く手を添えて片脚で立ちます。慣れたら手の支えを減らします。', dose:'30秒×2回'}
+],
+'その他':[
+{name:'お尻のストレッチ（椅子で）', level:'軽い', when:'ラン後', how:'椅子に座り、片方の足首を反対側の膝に乗せ、背筋を伸ばしたまま前に倒れます。お尻の奥が伸びます。', dose:'20〜30秒×2回'},
+{name:'股関節の前側ストレッチ', level:'軽い', when:'ラン後', how:'片膝立ち（ランジの姿勢）になり、骨盤をゆっくり前に押し出します。脚の付け根の前側が伸びます。バランスが不安な場合は椅子の横で行います。', dose:'20〜30秒×2回'},
+{name:'ハムストリングスストレッチ', level:'軽い', when:'ラン後', how:'椅子に浅く座り、片脚を伸ばしてかかとを床につけ、背筋を伸ばしたまま前に倒れます。太ももの裏が伸びます。', dose:'20〜30秒×2回'},
+{name:'背中の丸め・反らし（四つ這い）', level:'軽い', when:'日常', how:'床で四つ這いになり、息に合わせて背中を丸める・軽く反らすを繰り返します。全身のリラックス用です。', dose:'8回×2セット'}
+]
+};
+function carePlan(part, color){
+var items = CARE_LIB[part] || CARE_LIB['その他'];
+if (color === 'red'){
+return {items:[], blocked:true, message:'休養を優先し、整形外科・スポーツ整形の受診を検討してください。痛みが落ち着くまではストレッチも控えてください。'};
+}
+if (color === 'yellow'){
+return {items:items.filter(function(it){ return it.level === '軽い';}), blocked:false,
+message:'痛みの判定が黄のため、軽めのケアのみにしてください。強く伸ばさず、心地よい範囲で止めてください。'};
+}
+var msg = (color === 'green') ? '判定は緑です。予防と回復のためのケアとして行ってください。' : '痛みの記録がないため、予防ケアとして表示しています。';
+return {items:items.slice(), blocked:false, message:msg};
+}
 /* --- AI相談用要約 --- */
 function buildAiSummary(records, settings, todayKey){
 var lines = [];
@@ -1040,6 +1121,9 @@ function renderSignals(){
   } else {
     html += '<div class="small" style="margin-top:6px">疲労サインは出ていません。</div>';
   }
+  if (pj.level === 'green' || pj.level === 'yellow'){
+    html += '<div class="btnrow"><button class="sub" id="btn-goto-care">今日のケアを見る</button></div>';
+  }
   el('signal-box').innerHTML = html;
   if (pj.level === 'red'){
     el('painred-banner').innerHTML = '<div class="banner-red"><strong>痛みの赤信号が出ています。</strong><br>走るのは控えてください。このアプリは診断はしません。痛みが続く・強い場合は、整形外科・スポーツ整形の受診を検討してください。</div>';
@@ -1189,6 +1273,10 @@ function buildRecordControls(){
   el('pain-fields').style.display='none';
   var pp=el('pain-part'); pp.innerHTML='';
   PAIN_PARTS.forEach(function(p){ var o=document.createElement('option'); o.value=p; o.textContent=p; pp.appendChild(o); });
+  var cp=el('care-part'); cp.innerHTML='';
+  PAIN_PARTS.forEach(function(p){ var o=document.createElement('option'); o.value=p; o.textContent=p; cp.appendChild(o); });
+  cp.value='脛の内側';
+  cp.addEventListener('change', function(){ careUserSet=true; renderCare(); });
   makeSeg(el('pain-side'), ['左','右','両方'], '右');
   makeChecks(el('pain-timing'), PAIN_TIMING, '');
   makeChecks(el('pain-flags'), PAIN_FLAGS, 'redflag');
@@ -1244,7 +1332,42 @@ function fillRecordForm(k){
     el('pain-level').value=2; el('pain-level-val').textContent=2; el('pain-memo').value='';
     checksSet(el('pain-timing'), []); checksSet(el('pain-flags'), []);
   }
+  if (!careUserSet) el('care-part').value = latestPainPart();
+  renderCare();
   renderHistory();
+}
+/* --- 部位に合わせたケアの表示 --- */
+var careUserSet = false;
+function latestPainPart(){
+  var keys=Object.keys(records).filter(function(k){
+    var r=records[k]; return r && r.pain && !r.pain.none && r.pain.part;
+  }).sort();
+  return keys.length ? records[keys[keys.length-1]].pain.part : '脛の内側';
+}
+function renderCare(){
+  var sel = el('care-part'); if (!sel) return;
+  var part = sel.value || '脛の内側';
+  var pj = painJudge(records, todayKey());
+  var plan = carePlan(part, pj.level === 'none' ? null : pj.level);
+  var html = '';
+  html += '<div style="margin-bottom:6px">'+badgeHTML(pj)+' <span class="small">現在の痛みの判定 ／ 部位：'+esc(part)+'</span></div>';
+  if (plan.message) html += '<div class="caution" style="margin-top:0; margin-bottom:6px">'+esc(plan.message)+'</div>';
+  if (plan.items.length){
+    html += plan.items.map(function(it){
+      return '<div class="care-item"><div class="care-name">'+esc(it.name)+' <span class="care-tag">'+esc(it.level)+' ・ '+esc(it.when)+'</span>'+(it.device ? ' <span class="care-tag">任意：機器あり</span>' : '')+'</div>'
+        + '<div class="care-how">'+esc(it.how)+'</div>'
+        + '<div class="care-dose">目安：'+esc(it.dose)+'</div></div>';
+    }).join('');
+  } else if (!plan.blocked){
+    html += '<div class="small">この部位で表示できるケアはありません。</div>';
+  }
+  el('care-box').innerHTML = html;
+}
+function gotoCare(){
+  if (!careUserSet) el('care-part').value = latestPainPart();
+  renderCare();
+  showTab('record');
+  var c = el('care-card'); if (c) c.scrollIntoView();
 }
 function renderHistory(){
   var keys=Object.keys(records).filter(function(k){
@@ -1506,6 +1629,9 @@ el('btn-goto-record').addEventListener('click', function(){
   el('rec-date').value=todayKey(); showTab('record');
 });
 el('btn-goto-week').addEventListener('click', function(){ showTab('week'); });
+el('signal-box').addEventListener('click', function(ev){
+  if (ev.target && ev.target.id === 'btn-goto-care') gotoCare();
+});
 el('wk-prev').addEventListener('click', function(){ if (viewWeek>0){ viewWeek--; renderWeek(); } });
 el('wk-next').addEventListener('click', function(){ if (viewWeek<maxViewWeek()){ viewWeek++; renderWeek(); } });
 
