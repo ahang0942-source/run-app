@@ -230,6 +230,9 @@ video{width:100%; border-radius:12px; background:#000; margin-top:8px}
       <div class="rangeval" id="post-rpe-val">5</div>
       <label class="flabel">平均心拍（任意・Garminなどから）</label>
       <input type="number" id="post-hr" inputmode="numeric" placeholder="例：145">
+      <label class="flabel">実際に走った距離 km（任意・手入力）</label>
+      <input type="number" id="post-km" inputmode="decimal" step="0.1" min="0" placeholder="例：10.2">
+      <p class="small">Garmin取り込みがない日は、ここに入れると「予定より長く走った場合」の調整提案の対象になります。</p>
       <div class="btnrow"><button id="btn-save-post">ラン後チェックを保存</button></div>
       <div class="saved-note" id="note-post"></div>
     </div>
@@ -1067,6 +1070,40 @@ if (dg2) push({id:'unplanned-'+uk, title:'予定外ランの分、次のポイ�
 }
 break;
 }
+/* 距離超過: 予定より長く走った → 後ろの負荷を調整（休養日のランは予定外ラン側の担当） */
+for (var ob=6; ob>=0; ob--){
+var ok = addDays(todayKey, -ob);
+var op = planFor(ok, settings);
+if (!op.km) continue;
+if (['easy','point','long','recovery'].indexOf(op.kind) < 0) continue;
+var orr = records[ok];
+if (!orr) continue;
+var actual = (orr.act && orr.act.km)? orr.act.km : ((orr.post && orr.post.done && orr.post.km)? orr.post.km : null);
+if (actual === null || actual === undefined) continue;
+var over = Math.round((actual - op.km)*10)/10;
+var threshold = (op.kind === 'long')? 0.10 : 0.15;
+if (!(over >= 1 && over / op.km >= threshold)) continue;
+var overTxt = (over % 1 === 0)? String(over) : over.toFixed(1);
+var oReason = fmtMDshort(ok)+' の'+op.title+'は予定'+op.km+'kmのところ'+actual+'km走っています（+'+overTxt+'km）。実績として数えたうえで、後ろの負荷を調整します。';
+var startKey = addDays(ok, 1) > todayKey ? addDays(ok, 1) : todayKey;
+if (op.kind === 'long'){
+var nl = findNextDay(settings, overrides, startKey, 13, ['long']);
+if (nl && nl.plan.km){
+var nk = Math.round((nl.plan.km - over)*2)/2;
+var minKm = Math.max(8, Math.round(nl.plan.km*0.6*2)/2);
+if (nk < minKm) nk = minKm;
+var nkTxt = (nk % 1 === 0)? String(nk) : nk.toFixed(1);
+if (nk < nl.plan.km) push({id:'overage-'+ok, title:'ロングの超過分、次のロングを短くする', reason:oReason+'次のロングを '+nl.plan.km+'km → '+nkTxt+'km にします。',
+changes:[{date:nl.date, plan:{kind:'long', title:'ロング', km:nk, detail:'ペースはゆっくり（7:20-7:50/km 目安）。距離超過の調整のため短縮しています。'}}]});
+}
+} else {
+var np3 = findNextDay(settings, overrides, startKey, 13, ['point']);
+if (np3){
+var dg3 = downgradePointPlan(np3.plan);
+if (dg3) push({id:'overage-'+ok, title:'予定より長く走った分、次のポイントを1段下げる', reason:oReason, changes:[{date:np3.date, plan:dg3}]});
+}
+}
+}
 return out;
 }
 /* --- 痛み × 週間距離（直近8週） --- */
@@ -1502,6 +1539,7 @@ function buildRecordControls(){
   makeSeg(el('am-cond'), ['良い','普通','疲れている','張り・痛みあり'], '普通');
   makeSeg(el('post-done'), ['実施した','実施しなかった'], '実施した', function(v){
     el('post-rpe').disabled = (v!=='実施した');
+    el('post-km').disabled = (v!=='実施した');
   });
   makeSeg(el('pain-none'), ['痛みなし','痛みあり'], '痛みなし', function(v){
     el('pain-fields').style.display = (v==='痛みなし') ? 'none' : '';
@@ -1555,9 +1593,12 @@ function fillRecordForm(k){
     el('post-rpe').disabled=!r.post.done;
     el('post-rpe').value=r.post.rpe||5; el('post-rpe-val').textContent=r.post.rpe||5;
     el('post-hr').value = r.post.avgHR || '';
+    el('post-km').value = r.post.km || '';
+    el('post-km').disabled = !r.post.done;
   } else {
     segSet(el('post-done'),'実施した'); el('post-rpe').disabled=false;
     el('post-rpe').value=5; el('post-rpe-val').textContent=5; el('post-hr').value='';
+    el('post-km').value=''; el('post-km').disabled=false;
   }
   painDraft = painsOf(r).map(function(e){ return Object.assign({}, e, {timing:(e.timing||[]).slice(), flags:(e.flags||[]).slice()}); });
   el('pain-add-note').textContent = '';
@@ -1621,7 +1662,7 @@ function renderHistory(){
     var r=records[k], lines=[];
     if (r.am) lines.push('朝：睡眠 '+r.am.sleepH+'時間（'+r.am.quality+'）／体調 '+r.am.cond);
     if (r.act) lines.push('実績（'+(r.act.source||'取り込み')+'）：'+r.act.km+' km'+(r.act.mins?' ・ '+r.act.mins+'分 ・ '+paceStr(r.act.mins, r.act.km):'')+(r.act.avgHR?' ・ 平均心拍 '+r.act.avgHR+'bpm':'')+(r.act.cadence?' ・ ピッチ '+r.act.cadence+'spm':''));
-    if (r.post) lines.push('ラン後：'+(r.post.done?('実施、きつさ '+(r.post.rpe==null?'—':r.post.rpe)+(r.post.avgHR?'、平均心拍 '+r.post.avgHR+'bpm':'')):'未実施'));
+    if (r.post) lines.push('ラン後：'+(r.post.done?('実施、きつさ '+(r.post.rpe==null?'—':r.post.rpe)+(r.post.avgHR?'、平均心拍 '+r.post.avgHR+'bpm':'')+(r.post.km?'、実績距離 '+r.post.km+'km（手入力）':'')):'未実施'));
     if (painRecorded(r)){
       if (painNoneOf(r)) lines.push('痛み：なし');
       else painsOf(r).forEach(function(e){ lines.push('痛み：'+painEntryLabel(e)); });
@@ -1641,7 +1682,8 @@ el('btn-save-post').addEventListener('click', function(){
   var k=el('rec-date').value||todayKey();
   var done = segVal(el('post-done'))==='実施した';
   var hr = parseInt(el('post-hr').value, 10);
-  setRec(k, {post:{done:done, rpe:done?parseInt(el('post-rpe').value,10):null, avgHR:(done && hr)?hr:null}});
+  var km = parseFloat(el('post-km').value);
+  setRec(k, {post:{done:done, rpe:done?parseInt(el('post-rpe').value,10):null, avgHR:(done && hr)?hr:null, km:(done && km > 0)?Math.round(km*10)/10:null}});
   note('note-post','保存しました'); renderAll();
 });
 el('btn-save-pain').addEventListener('click', function(){
