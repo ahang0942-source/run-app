@@ -337,9 +337,9 @@ video{width:100%; border-radius:12px; background:#000; margin-top:8px}
     </div>
     <div class="card">
       <h2>Garmin取り込み</h2>
-      <p class="small">Garmin Connectから書き出した FIT / GPX / TCX ファイルを取り込むと、その日の記録に距離・時間・ペース（あれば心拍・ピッチ）が入ります。</p>
+      <p class="small">Garmin Connectから書き出した FIT / GPX / TCX ファイルを取り込むと、その日の記録に距離・時間・ペース（あれば心拍・ピッチ）が入ります。アクティビティ一覧から書き出した CSV にも対応し、ランニング分をまとめて複数日取り込めます（既に取り込み済みの日は上書きしません）。</p>
       <div class="btnrow"><button class="sub" id="btn-garmin">ファイルを選ぶ</button></div>
-      <input type="file" id="file-garmin" accept=".fit,.gpx,.tcx" style="display:none">
+      <input type="file" id="file-garmin" accept=".fit,.gpx,.tcx,.csv" style="display:none">
       <div class="saved-note" id="note-garmin"></div>
     </div>
     <div class="card">
@@ -675,6 +675,105 @@ mins: mins? Math.round(mins*10)/10: null,
 avgHR: avgHR, cadence: avgCad, source: 'FIT'
 };
 }catch(e){ return null;}
+}
+/* --- Garmin Connect CSVパーサ（アクティビティ一覧の書き出し） --- */
+function splitCsvRows(text){
+var rows = [], row = [], field = '', inQ = false, i, c;
+var s = String(text === null || text === undefined ? '' : text);
+if (s.charCodeAt(0) === 0xFEFF) s = s.slice(1);
+for (i=0;i<s.length;i++){
+c = s.charAt(i);
+if (inQ){
+if (c === '"'){
+if (s.charAt(i+1) === '"'){ field += '"'; i++; }
+else inQ = false;
+} else field += c;
+} else if (c === '"' && field === ''){
+inQ = true;
+} else if (c === ','){
+row.push(field); field = '';
+} else if (c === '\n' || c === '\r'){
+if (c === '\r' && s.charAt(i+1) === '\n') i++;
+row.push(field); field = '';
+rows.push(row); row = [];
+} else field += c;
+}
+row.push(field);
+rows.push(row);
+return rows.filter(function(r){ return !(r.length === 1 && String(r[0]).trim() === ''); });
+}
+var CSV_COL_ALIASES = {
+type:   ['アクティビティタイプ','アクティビティの種類','Activity Type','種目'],
+date:   ['日付','Date','日時'],
+title:  ['タイトル','Title'],
+km:     ['距離','Distance'],
+time:   ['タイム','Time','経過時間','時間'],
+avgHR:  ['平均心拍数','Avg HR','Average HR','平均心拍'],
+cadence:['平均ランニングピッチ','平均ピッチ','Avg Run Cadence','Avg Cadence','平均ランニングケイデンス','平均ケイデンス']
+};
+function csvColIndex(headers, names){
+var lower = headers.map(function(h){ return String(h).toLowerCase(); });
+for (var n=0;n<names.length;n++){
+var want = names[n].toLowerCase();
+for (var i=0;i<headers.length;i++){
+if (lower[i].indexOf(want) >= 0) return i;
+}
+}
+return -1;
+}
+function csvDateKey(v){
+if (!v) return null;
+var m = String(v).match(/(\d{4})\D+(\d{1,2})\D+(\d{1,2})/);
+if (!m) return null;
+return m[1]+'-'+pad2(+m[2])+'-'+pad2(+m[3]);
+}
+function csvNum(v){
+if (v === null || v === undefined) return null;
+var f = parseFloat(String(v).replace(/,/g,'').replace(/[^0-9.\-]/g,''));
+return isNaN(f)? null: f;
+}
+function csvTimeMins(v){
+if (!v) return null;
+var s = String(v).trim();
+if (s.indexOf(':') < 0) return csvNum(s);
+var parts = s.split(':'), nums = [], i;
+for (i=0;i<parts.length;i++){ var f = parseFloat(parts[i]); if (isNaN(f)) return null; nums.push(f); }
+var sec = nums.length >= 3 ? nums[0]*3600 + nums[1]*60 + nums[2] : nums[0]*60 + nums[1];
+return Math.round(sec/60*10)/10;
+}
+function csvIsRunning(typeVal){
+if (typeVal === null || typeVal === undefined || String(typeVal).trim() === '') return true; /* 種目列がなければ全件対象 */
+var t = String(typeVal).toLowerCase();
+return t.indexOf('ラン') >= 0 || t.indexOf('run') >= 0;
+}
+function parseGarminCSV(text){
+var rows = splitCsvRows(text);
+if (rows.length < 2) return null;
+var headers = rows[0].map(function(h){ return String(h).trim(); });
+var idx = {}, keys = Object.keys(CSV_COL_ALIASES), i;
+for (i=0;i<keys.length;i++) idx[keys[i]] = csvColIndex(headers, CSV_COL_ALIASES[keys[i]]);
+if (idx.date < 0 || idx.km < 0) return null; /* ヘッダが認識できない（文字化け等） */
+var acts = [], skipped = 0;
+for (var r=1;r<rows.length;r++){
+var row = rows[r];
+if (!csvIsRunning(idx.type >= 0 ? row[idx.type] : null)){ skipped++; continue; }
+var dateKey = csvDateKey(row[idx.date]);
+var km = csvNum(row[idx.km]);
+if (!dateKey || !km){ skipped++; continue; }
+var mins = idx.time >= 0 ? csvTimeMins(row[idx.time]) : null;
+var avgHR = idx.avgHR >= 0 ? csvNum(row[idx.avgHR]) : null;
+var cad = idx.cadence >= 0 ? csvNum(row[idx.cadence]) : null;
+acts.push({
+dateKey: dateKey,
+km: Math.round(km*100)/100,
+mins: mins,
+pace: (mins && km) ? paceStr(mins, km) : null,
+avgHR: (avgHR !== null && avgHR > 0) ? Math.round(avgHR) : null,
+cadence: (cad !== null && cad > 0) ? Math.round(cad) : null,
+title: idx.title >= 0 ? String(row[idx.title] || '').trim() : ''
+});
+}
+return {activities: acts, skipped: skipped};
 }
 /* --- 痛み判定（敏感バージョン） --- */
 function painJudge(records, dateKey){
@@ -1429,6 +1528,39 @@ el('file-garmin').addEventListener('change', function(){
     renderAll(); fillRecordForm(k);
   }
   function fail(){ note('note-garmin','読み込めませんでした（対応形式かご確認ください）'); }
+  function doneCsv(res){
+    var imported = 0, dupSkip = 0, lastK = null;
+    res.activities.forEach(function(a){
+      var r = recOf(a.dateKey);
+      if (r.act){ dupSkip++; return; } /* 既存データは上書きしない */
+      var cleanAct = {km:a.km||0, mins:a.mins||null, pace:a.pace||((a.mins && a.km) ? paceStr(a.mins, a.km) : null), avgHR:a.avgHR||null, cadence:a.cadence||null, source:'CSV'};
+      var post = r.post ? Object.assign({}, r.post) : {rpe:null, avgHR:null};
+      post.done = true;
+      if (!post.avgHR && cleanAct.avgHR) post.avgHR = cleanAct.avgHR;
+      records[a.dateKey] = Object.assign({}, r, {act:cleanAct, post:post});
+      imported++;
+      if (!lastK || a.dateKey > lastK) lastK = a.dateKey;
+    });
+    var msg;
+    if (imported){
+      saveJSON(LS_REC, records);
+      msg = 'CSVから'+imported+'件取り込みました';
+      var sub = [];
+      if (res.skipped) sub.push('対象外'+res.skipped+'件');
+      if (dupSkip) sub.push('既存データあり'+dupSkip+'件はスキップ');
+      if (sub.length) msg += '（'+sub.join('、')+'）';
+    } else if (dupSkip){
+      msg = '新しい取り込みはありませんでした（既存データあり'+dupSkip+'件）';
+    } else {
+      msg = '取り込めるランニングがありませんでした（対象外'+res.skipped+'件）';
+    }
+    note('note-garmin', msg);
+    if (imported){
+      el('rec-date').value = lastK;
+      renderAll(); fillRecordForm(lastK);
+    }
+  }
+  function failCsv(){ note('note-garmin','読み込めませんでした（GarminのCSV形式かご確認ください）'); }
   try{
     if (name.slice(-4) === '.fit'){
       var rd1 = new FileReader();
@@ -1443,6 +1575,23 @@ el('file-garmin').addEventListener('change', function(){
       };
       rd2.onerror = fail;
       rd2.readAsText(f);
+    } else if (name.slice(-4) === '.csv'){
+      var rd5 = new FileReader();
+      rd5.onload = function(){
+        var parsed = null;
+        if (typeof TextDecoder !== 'undefined'){
+          try{ parsed = parseGarminCSV(new TextDecoder('utf-8').decode(rd5.result)); }catch(e){ parsed = null; }
+          if (!parsed){ try{ parsed = parseGarminCSV(new TextDecoder('shift-jis').decode(rd5.result)); }catch(e){ parsed = null; } }
+          parsed ? doneCsv(parsed) : failCsv();
+        } else {
+          var rd6 = new FileReader();
+          rd6.onload = function(){ var p2 = parseGarminCSV(rd6.result); p2 ? doneCsv(p2) : failCsv(); };
+          rd6.onerror = failCsv;
+          rd6.readAsText(f);
+        }
+      };
+      rd5.onerror = failCsv;
+      rd5.readAsArrayBuffer(f);
     } else { fail(); }
   }catch(e){ fail(); }
   this.value='';
