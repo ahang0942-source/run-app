@@ -47,6 +47,9 @@ button{
 button.sub{background:#e6efef; color:var(--teal)}
 button.ghost{background:transparent; color:var(--teal); border:1px solid var(--line)}
 button.danger{background:#fdecec; color:var(--bad); border:1px solid #f3b8b8}
+button.danger.armed{background:var(--bad); color:#fff; border-color:var(--bad); font-weight:700}
+.reset-sep{border:none; border-top:1px solid var(--line); margin:16px 0 10px}
+.reset-warn{color:var(--bad)}
 button:disabled{opacity:.45}
 .btnrow{display:flex; gap:8px; flex-wrap:wrap; margin-top:10px}
 .btnrow button{flex:1; min-width:120px}
@@ -375,6 +378,10 @@ video{width:100%; border-radius:12px; background:#000; margin-top:8px}
       </div>
       <input type="file" id="file-import" accept="application/json,.json" style="display:none">
       <div class="saved-note" id="note-data"></div>
+      <hr class="reset-sep">
+      <p class="small reset-warn">データのリセット：記録・設定・調整内容・提案履歴を全て消して、初期状態（かがわマラソン2027／2027-03-21／4時間30分）に戻します。消す前に、必要ならJSONを書き出してください。リセット後は元に戻せません。</p>
+      <div class="btnrow"><button type="button" class="danger" id="btn-reset">データを全てリセット</button></div>
+      <div class="saved-note" id="note-reset"></div>
     </div>
     <div class="card">
       <h2>このアプリについて</h2>
@@ -1899,6 +1906,32 @@ el('file-import').addEventListener('change', function(){
     }catch(e){ note('note-data','読み込めませんでした（ファイル形式をご確認ください）'); }
   };
   rd.readAsText(f); this.value='';
+});
+
+/* --- データリセット（二段階確認） --- */
+var resetArmed=false, resetArmTimer=null;
+function disarmReset(){
+  resetArmed=false;
+  if (resetArmTimer){ clearTimeout(resetArmTimer); resetArmTimer=null; }
+  var b=el('btn-reset'); if (b){ b.textContent='データを全てリセット'; b.classList.remove('armed'); }
+}
+el('btn-reset').addEventListener('click', function(){
+  if (!resetArmed){
+    resetArmed=true;
+    var b=el('btn-reset');
+    b.textContent='本当にリセットしますか？ もう一度押すと全て消えます';
+    b.classList.add('armed');
+    note('note-reset','記録・設定・調整内容・提案履歴の全てが消えます');
+    resetArmTimer=setTimeout(disarmReset, 5000);
+    return;
+  }
+  /* 旧キーも消す（残すと再読み込み時に第1段階のデータが移行で復活してしまうため） */
+  try{
+    localStorage.removeItem(LS_SET); localStorage.removeItem(LS_REC);
+    localStorage.removeItem(LS_OVR); localStorage.removeItem(LS_PROP);
+    localStorage.removeItem(OLD_SET); localStorage.removeItem(OLD_REC);
+  }catch(e){}
+  location.reload();
 });
 
 /* --- タブと遷移 --- */
