@@ -1,0 +1,1521 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b5563">
+<title>ランニング練習アプリ（完成版）</title>
+<style>
+:root{
+  --teal:#0b5563; --teal2:#0e7569; --accent:#0f766e;
+  --bg:#f4f7f7; --card:#ffffff; --ink:#1c2b2e; --sub:#5c6f73;
+  --line:#dbe5e6; --warn:#b45309; --bad:#b91c1c; --ok:#15803d;
+  --radius:14px;
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0}
+body{
+  font-family:"Hiragino Kaku Gothic ProN","Hiragino Sans","Noto Sans JP",sans-serif;
+  background:var(--bg); color:var(--ink); font-size:16px; line-height:1.55;
+  padding-bottom:86px;
+}
+header.top{
+  background:var(--teal); color:#fff; padding:14px 18px 12px;
+  position:sticky; top:0; z-index:10;
+}
+header.top .appname{font-size:13px; opacity:.85; letter-spacing:.08em}
+header.top .raceday{font-size:22px; font-weight:700; margin-top:2px}
+header.top .raceday small{font-size:14px; font-weight:400; opacity:.9}
+main{max-width:560px; margin:0 auto; padding:14px 14px 0}
+.screen{display:none}
+.screen.active{display:block}
+.card{
+  background:var(--card); border:1px solid var(--line); border-radius:var(--radius);
+  padding:14px 16px; margin-bottom:12px;
+}
+.card h2{font-size:15px; color:var(--teal); margin:0 0 8px; letter-spacing:.03em}
+.card h3{font-size:14px; color:var(--teal); margin:14px 0 6px}
+.today-menu{border-left:6px solid var(--teal2)}
+.today-menu .kind{font-size:20px; font-weight:700}
+.today-menu .detail{color:var(--ink); margin-top:4px; white-space:pre-line}
+.today-menu .meta{color:var(--sub); font-size:13px; margin-top:6px}
+.rest-day{color:var(--sub)}
+button{
+  font:inherit; border:none; border-radius:10px; cursor:pointer;
+  background:var(--teal2); color:#fff; padding:10px 14px; font-size:15px;
+}
+button.sub{background:#e6efef; color:var(--teal)}
+button.ghost{background:transparent; color:var(--teal); border:1px solid var(--line)}
+button.danger{background:#fdecec; color:var(--bad); border:1px solid #f3b8b8}
+button:disabled{opacity:.45}
+.btnrow{display:flex; gap:8px; flex-wrap:wrap; margin-top:10px}
+.btnrow button{flex:1; min-width:120px}
+.status-line{font-size:14px; margin:4px 0}
+.status-line .done{color:var(--ok); font-weight:700}
+.status-line .yet{color:var(--warn)}
+nav.tabs{
+  position:fixed; left:0; right:0; bottom:0; z-index:10;
+  background:#fff; border-top:1px solid var(--line);
+  display:flex; padding-bottom:env(safe-area-inset-bottom);
+}
+nav.tabs button{
+  flex:1; background:transparent; color:var(--sub); border-radius:0;
+  padding:10px 0 8px; font-size:13px;
+}
+nav.tabs button.active{color:var(--teal); font-weight:700; box-shadow:inset 0 2px 0 var(--teal2)}
+.weeknav{display:flex; align-items:center; gap:8px; margin-bottom:10px}
+.weeknav .wk{flex:1; text-align:center; font-weight:700; color:var(--teal)}
+.day{
+  display:flex; gap:10px; align-items:flex-start;
+  background:var(--card); border:1px solid var(--line); border-radius:var(--radius);
+  padding:10px 12px; margin-bottom:8px;
+}
+.day.today{border-color:var(--teal2); box-shadow:0 0 0 1px var(--teal2)}
+.day.changed{border-left:6px solid var(--warn)}
+.day .dow{width:44px; flex:none; text-align:center}
+.day .dow .w{font-weight:700; font-size:15px}
+.day .dow .d{font-size:12px; color:var(--sub)}
+.day .body{flex:1; min-width:0}
+.day .kind{font-weight:700}
+.day .detail{font-size:13px; color:var(--ink); white-space:pre-line}
+.day .mark{flex:none; font-size:13px; color:var(--ok); font-weight:700; padding-top:2px}
+.day .mark .opt{color:var(--sub); font-weight:400}
+label.flabel{display:block; font-size:13px; color:var(--sub); margin:12px 0 4px}
+select, input[type="text"], input[type="date"], input[type="number"], textarea{
+  font:inherit; width:100%; padding:9px 10px; border:1px solid var(--line);
+  border-radius:10px; background:#fff; color:var(--ink);
+}
+textarea{resize:vertical; min-height:56px}
+.seg{display:flex; gap:6px; flex-wrap:wrap}
+.seg button{
+  flex:1; min-width:64px; background:#eef4f4; color:var(--teal); padding:9px 4px; font-size:14px;
+}
+.seg button.on{background:var(--teal2); color:#fff; font-weight:700}
+input[type="range"]{width:100%; accent-color:var(--teal2); height:32px}
+.rangeval{font-size:20px; font-weight:700; color:var(--teal); text-align:center}
+.checks{display:flex; flex-wrap:wrap; gap:6px}
+.checks label{
+  border:1px solid var(--line); border-radius:999px; padding:7px 12px; font-size:14px;
+  background:#fff; cursor:pointer;
+}
+.checks label.on{background:var(--teal2); color:#fff; border-color:var(--teal2)}
+.checks label.redflag.on{background:var(--bad); border-color:var(--bad)}
+.checks input{display:none}
+.saved-note{color:var(--ok); font-size:13px; min-height:18px; margin-top:6px}
+.hist-item{border-top:1px solid var(--line); padding:8px 0; font-size:14px}
+.hist-item:first-of-type{border-top:none}
+.hist-item .hdate{font-weight:700; color:var(--teal)}
+.small{font-size:13px; color:var(--sub)}
+.kv{display:flex; justify-content:space-between; font-size:14px; padding:3px 0}
+.kv b{color:var(--teal)}
+.notice{background:#fff8e6; border:1px solid #f0dfae; border-radius:var(--radius); padding:12px 14px; font-size:13px; margin-bottom:12px}
+.badge{display:inline-block; padding:2px 12px; border-radius:999px; font-weight:700; color:#fff; font-size:14px; vertical-align:middle}
+.badge.green{background:var(--ok)}
+.badge.yellow{background:var(--warn)}
+.badge.red{background:var(--bad)}
+.badge.none{background:#94a3a8}
+.banner-red{background:#fdecec; border:1px solid #f3b8b8; border-radius:var(--radius); padding:12px 14px; font-size:14px; margin-bottom:12px; color:#7f1d1d}
+.caution{background:#fff8e6; border:1px solid #f0dfae; border-radius:var(--radius); padding:10px 14px; font-size:13px; margin-top:10px}
+.prop-card{border-left:6px solid var(--warn)}
+.prop-card .ptitle{font-weight:700; font-size:16px}
+.prop-card .preason{font-size:13px; color:var(--sub); margin-top:2px}
+.prop-card .pchange{font-size:14px; margin-top:6px; white-space:pre-line}
+.corr-row{display:flex; justify-content:space-between; font-size:13px; padding:4px 0; border-top:1px solid var(--line)}
+.corr-row:first-of-type{border-top:none}
+.corr-row .pain-hi{color:var(--bad); font-weight:700}
+.corr-row .pain-mid{color:var(--warn); font-weight:700}
+video{width:100%; border-radius:12px; background:#000; margin-top:8px}
+.tapbtn{font-size:19px; padding:20px 14px; width:100%}
+.rate-row{display:flex; gap:6px; margin-top:8px}
+.rate-row button{flex:1; background:#eef4f4; color:var(--teal); font-size:14px; padding:8px 4px}
+.rate-row button.on{background:var(--teal2); color:#fff; font-weight:700}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="appname">ランニング練習アプリ ・ 完成版</div>
+  <div class="raceday"><span id="hdr-countdown">--</span> <small id="hdr-race"></small></div>
+</header>
+<main>
+  <!-- ホーム -->
+  <section class="screen active" id="scr-home">
+    <div class="card today-menu">
+      <h2>今日のメニュー</h2>
+      <div class="kind" id="today-kind">-</div>
+      <div class="detail" id="today-detail"></div>
+      <div class="meta" id="today-meta"></div>
+    </div>
+    <div id="painred-banner"></div>
+    <div class="card">
+      <h2>痛みと疲労のサイン</h2>
+      <div id="signal-box"></div>
+    </div>
+    <div id="prop-box"></div>
+    <div class="card">
+      <h2>今日の記録</h2>
+      <div class="status-line" id="st-am"></div>
+      <div class="status-line" id="st-post"></div>
+      <div class="status-line" id="st-pain"></div>
+      <div class="btnrow">
+        <button id="btn-goto-record">記録を入力する</button>
+      </div>
+    </div>
+    <div class="card">
+      <h2>今週</h2>
+      <div id="week-summary"></div>
+      <div class="btnrow">
+        <button class="sub" id="btn-goto-week">週間メニューを見る</button>
+      </div>
+    </div>
+    <div class="card">
+      <h2>痛みと週間距離（直近8週）</h2>
+      <div id="corr-box"></div>
+      <p class="small">各週の予定距離と、その週に記録した一番強い痛さです。痛みが強い週に距離が伸びていないか、振り返りに使ってください。</p>
+    </div>
+  </section>
+
+  <!-- 週間 -->
+  <section class="screen" id="scr-week">
+    <div class="weeknav">
+      <button class="ghost" id="wk-prev">◀ 前の週</button>
+      <div class="wk" id="wk-title">-</div>
+      <button class="ghost" id="wk-next">次の週 ▶</button>
+    </div>
+    <div id="week-list"></div>
+    <p class="small">曜日は基本固定です（火：イージー、水：任意の回復ラン、木：ポイント、日：ロング）。提案を承認して変更した日は、左に色の帯が付きます。</p>
+  </section>
+
+  <!-- 記録 -->
+  <section class="screen" id="scr-record">
+    <div class="card">
+      <h2>記録する日</h2>
+      <input type="date" id="rec-date">
+      <div id="act-box" style="margin-top:8px"></div>
+    </div>
+
+    <div class="card">
+      <h2>朝チェック</h2>
+      <label class="flabel">睡眠時間</label>
+      <select id="am-sleep"></select>
+      <label class="flabel">眠りの良さ</label>
+      <div class="seg" id="am-quality"></div>
+      <label class="flabel">体調</label>
+      <div class="seg" id="am-cond"></div>
+      <label class="flabel">メモ（任意）</label>
+      <textarea id="am-memo" placeholder="気付いたことなど"></textarea>
+      <div class="btnrow"><button id="btn-save-am">朝チェックを保存</button></div>
+      <div class="saved-note" id="note-am"></div>
+    </div>
+
+    <div class="card">
+      <h2>ラン後チェック</h2>
+      <label class="flabel">今日の練習は実施しましたか</label>
+      <div class="seg" id="post-done"></div>
+      <label class="flabel">きつさ（RPE） 1＝とても楽 〜 10＝限界</label>
+      <input type="range" id="post-rpe" min="1" max="10" step="1" value="5">
+      <div class="rangeval" id="post-rpe-val">5</div>
+      <label class="flabel">平均心拍（任意・Garminなどから）</label>
+      <input type="number" id="post-hr" inputmode="numeric" placeholder="例：145">
+      <div class="btnrow"><button id="btn-save-post">ラン後チェックを保存</button></div>
+      <div class="saved-note" id="note-post"></div>
+    </div>
+
+    <div class="card">
+      <h2>痛みの記録</h2>
+      <div class="seg" id="pain-none"></div>
+      <div id="pain-fields">
+        <label class="flabel">部位</label>
+        <select id="pain-part"></select>
+        <label class="flabel">左右</label>
+        <div class="seg" id="pain-side"></div>
+        <label class="flabel">痛さ 0＝なし 〜 10＝強い</label>
+        <input type="range" id="pain-level" min="0" max="10" step="1" value="2">
+        <div class="rangeval" id="pain-level-val">2</div>
+        <label class="flabel">いつ痛むか（複数可）</label>
+        <div class="checks" id="pain-timing"></div>
+        <label class="flabel">要注意のサイン（当てはまるもの全部）</label>
+        <div class="checks" id="pain-flags"></div>
+        <label class="flabel">メモ（任意）</label>
+        <textarea id="pain-memo" placeholder="路面、シューズ、気付いたことなど"></textarea>
+      </div>
+      <div class="btnrow"><button id="btn-save-pain">痛みの記録を保存</button></div>
+      <div class="saved-note" id="note-pain"></div>
+      <p class="small">このアプリは診断はしません。痛さとサインから信号（緑／黄／赤）で目安を示し、赤のときは受診の検討を案内します。</p>
+    </div>
+
+    <div class="card">
+      <h2>最近の記録</h2>
+      <div id="history"></div>
+    </div>
+  </section>
+
+  <!-- フォーム -->
+  <section class="screen" id="scr-form">
+    <div class="card">
+      <h2>撮影ガイド</h2>
+      <p class="small" style="color:var(--ink); font-size:14px">
+        ・カメラは走路の<strong>真横</strong>、高さは<strong>腰の高さ（80〜100cm）</strong>が目安です。<br>
+        ・三脚がなければ、バッグの上・フェンス・ガードレールなど安定した場所に置いてください（手持ちはブレて計測できません）。<br>
+        ・カメラの前を走り抜ける形で、10秒ほど撮ります。スローモーション（120fps以上）がおすすめです。<br>
+        ・逆光だと影で見えにくくなります。太陽を背にしない向きで撮ってください。
+      </p>
+    </div>
+    <div class="card">
+      <h2>動画で確認</h2>
+      <input type="file" id="form-video-file" accept="video/*">
+      <video id="form-video" controls playsinline style="display:none"></video>
+      <div class="rate-row" id="form-rates">
+        <button type="button" data-rate="0.25">0.25倍</button>
+        <button type="button" data-rate="0.5">0.5倍</button>
+        <button type="button" data-rate="1" class="on">1倍</button>
+        <button type="button" id="frm-back">◀ コマ戻し</button>
+        <button type="button" id="frm-fwd">コマ送り ▶</button>
+      </div>
+      <p class="small">コマ送りは約1/30秒ずつ動きます（スロー動画では目安です）。</p>
+    </div>
+    <div class="card">
+      <h2>ピッチ計測（タップ）</h2>
+      <p class="small" style="font-size:14px; color:var(--ink)">動画を再生しながら、足が着くたびに下のボタンをタップしてください。「計測開始」から10秒間の歩数を数えて、ピッチ（spm）を出します。</p>
+      <div class="btnrow"><button class="sub" id="tap-start">計測開始</button></div>
+      <div style="margin-top:10px"><button class="tapbtn" id="tap-btn" disabled>着地タップ</button></div>
+      <div class="rangeval" id="tap-info" style="font-size:16px; margin-top:6px">未計測</div>
+    </div>
+    <div class="card">
+      <h2>計測メモ</h2>
+      <label class="flabel">日付</label>
+      <input type="date" id="form-date">
+      <label class="flabel">ピッチ（spm・任意）</label>
+      <input type="number" id="form-pitch" inputmode="numeric" placeholder="例：172">
+      <label class="flabel">前傾</label>
+      <div class="seg" id="form-lean"></div>
+      <label class="flabel">着地の仕方</label>
+      <div class="seg" id="form-land"></div>
+      <label class="flabel">着地位置</label>
+      <div class="seg" id="form-pos"></div>
+      <label class="flabel">メモ（任意）</label>
+      <textarea id="form-memo" placeholder="気付いたことなど"></textarea>
+      <div class="btnrow"><button id="btn-save-form">計測メモを保存</button></div>
+      <div class="saved-note" id="note-form"></div>
+      <div id="form-advice"></div>
+      <p class="small">フォーム確認は1台のカメラによる2Dの傾向把握です。診断ではありません。</p>
+    </div>
+    <div class="card">
+      <h2>これまでの計測メモ</h2>
+      <div id="form-history"></div>
+    </div>
+  </section>
+
+  <!-- 設定 -->
+  <section class="screen" id="scr-settings">
+    <div class="card">
+      <h2>目標レース</h2>
+      <label class="flabel">レース名</label>
+      <input type="text" id="set-name">
+      <label class="flabel">開催日</label>
+      <input type="date" id="set-date">
+      <label class="flabel">目標タイム</label>
+      <input type="text" id="set-target">
+      <label class="flabel">普段のイージー平均心拍（任意・疲労判定の補助に使います）</label>
+      <input type="number" id="set-easyhr" inputmode="numeric" placeholder="例：140（未設定なら空）">
+      <div class="btnrow"><button id="btn-save-settings">設定を保存</button></div>
+      <div class="saved-note" id="note-settings"></div>
+      <p class="small">開催日から逆算して、21週間の骨格メニューを組み直します。レース後は自動で回復期間→維持モードに切り替わります。</p>
+    </div>
+    <div class="card">
+      <h2>Garmin取り込み</h2>
+      <p class="small">Garmin Connectから書き出した FIT / GPX / TCX ファイルを取り込むと、その日の記録に距離・時間・ペース（あれば心拍・ピッチ）が入ります。</p>
+      <div class="btnrow"><button class="sub" id="btn-garmin">ファイルを選ぶ</button></div>
+      <input type="file" id="file-garmin" accept=".fit,.gpx,.tcx" style="display:none">
+      <div class="saved-note" id="note-garmin"></div>
+    </div>
+    <div class="card">
+      <h2>AI相談用の要約</h2>
+      <p class="small">直近4週の記録から要約を自動で作ります。内容を確認してから、コピーまたは共有でいつものAIアプリに渡してください。自動送信はしません。GPSの経路や動画は含まれません。</p>
+      <textarea id="ai-summary" readonly style="min-height:170px"></textarea>
+      <div class="btnrow">
+        <button class="sub" id="btn-ai-refresh">要約を作り直す</button>
+        <button id="btn-ai-copy">コピー</button>
+        <button id="btn-ai-share">共有</button>
+      </div>
+      <div class="saved-note" id="note-ai"></div>
+    </div>
+    <div class="card">
+      <h2>提案の履歴</h2>
+      <div id="prop-history"></div>
+    </div>
+    <div class="card">
+      <h2>データの書き出し・読み込み</h2>
+      <p class="small">記録・設定・変更（提案の承認内容）と提案履歴はこの端末の中（ブラウザの保存領域）にだけ保存されます。機種変更や万一に備えて、JSONで書き出して保管してください。</p>
+      <div class="btnrow">
+        <button class="sub" id="btn-export">JSONを書き出す</button>
+        <button class="sub" id="btn-import">JSONを読み込む</button>
+      </div>
+      <input type="file" id="file-import" accept="application/json,.json" style="display:none">
+      <div class="saved-note" id="note-data"></div>
+    </div>
+    <div class="card">
+      <h2>このアプリについて</h2>
+      <p class="small">仕様書 v1.3 の完成版です。第1段階の記録は、初回起動時に自動で引き継がれます。痛みの判定・疲労シグナル・調整提案（すべて承認制）・Garmin取り込み・大会後の維持モード・AI相談用要約・フォーム確認が入っています。このアプリは診断を行うものではありません。</p>
+    </div>
+  </section>
+</main>
+
+<nav class="tabs">
+  <button data-tab="home" class="active">ホーム</button>
+  <button data-tab="week">週間</button>
+  <button data-tab="record">記録</button>
+  <button data-tab="form">フォーム</button>
+  <button data-tab="settings">設定</button>
+</nav>
+
+<script>
+/* ===== 純粋ロジック（仕様書 v1.3 の決定事項） ===== */
+var TOTAL_WEEKS = 21;
+/* 週間骨格: total=基本3回の合計km, long=ロングkm, point=M(Mペース)|T(テンポ) */
+var SKELETON = [
+{total:31, long:16, point:'M'}, {total:32, long:17, point:'T'},
+{total:33, long:18, point:'M'}, {total:30, long:16, point:'T'},
+{total:34, long:19, point:'M'}, {total:35, long:20, point:'T'},
+{total:36, long:20, point:'M'}, {total:33, long:18, point:'T'},
+{total:37, long:21, point:'M'}, {total:39, long:22, point:'T'},
+{total:41, long:24, point:'M'}, {total:38, long:21, point:'T'},
+{total:43, long:25, point:'M'}, {total:45, long:26, point:'T'},
+{total:47, long:28, point:'M'}, {total:43, long:24, point:'T'},
+{total:50, long:30, point:'M'}, {total:52, long:32, point:'T'},
+{total:44, long:24, point:'M'}, {total:34, long:16, point:'T'},
+{total:0, long:0, point:null} /* 21週目: レース週 */
+];
+var PAIN_FLAGS = ['一点の鋭い痛み','安静時も痛む','歩く時も痛む','しびれ','腫れ'];
+function pad2(n){ return (n<10?'0':'')+n;}
+function toKey(d){ return d.getFullYear()+'-'+pad2(d.getMonth()+1)+'-'+pad2(d.getDate());}
+function fromKey(k){ var p=k.split('-'); return new Date(+p[0], +p[1]-1, +p[2]);}
+function addDays(k, n){ var d=fromKey(k); d.setDate(d.getDate()+n); return toKey(d);}
+function diffDays(a, b){ return Math.round((fromKey(a)-fromKey(b))/86400000);}
+function dowIdx(k){ return (fromKey(k).getDay()+6)%7;} /* 月=0.. 日=6 */
+function startMonday(raceKey){ return addDays(raceKey, -146);} /* 第1週の月曜 = 本番の146日前 */
+function rawWeekIndex(dateKey, raceKey){
+var d = diffDays(dateKey, startMonday(raceKey));
+return d < 0? -1: Math.floor(d/7);
+}
+function weekIndexFor(dateKey, raceKey){
+var w = rawWeekIndex(dateKey, raceKey);
+return w >= TOTAL_WEEKS? TOTAL_WEEKS: w;
+}
+function weekDates(raceKey, w){
+var mon = addDays(startMonday(raceKey), w*7), out=[];
+for (var i=0;i<7;i++) out.push(addDays(mon,i));
+return out;
+}
+function splitKm(wk){
+var rest = wk.total - wk.long;
+var easy = Math.round(rest*0.45);
+if (easy < 6) easy = 6; if (easy > 12) easy = 12;
+return {easy:easy, point:rest-easy};
+}
+/* 大会後のモード: 'before' | 'recovery'(2週間) | 'maintenance' */
+function postRaceMode(dateKey, raceKey){
+var after = diffDays(dateKey, raceKey);
+if (after <= 0) return 'before';
+if (after <= 14) return 'recovery';
+return 'maintenance';
+}
+function easyPlan(km){
+return {kind:'easy', title:'イージー', km:km, detail:'ペース 7:00-7:40/km（会話できる強度）\n仕上げに流し4本（任意）'};
+}
+function planFor(dateKey, settings){
+var raceKey = settings.raceDate;
+var di = dowIdx(dateKey);
+var mode = postRaceMode(dateKey, raceKey);
+if (mode === 'recovery'){
+if (di===1) return {kind:'easy', title:'イージー（短め）', km:5, detail:'ペース 7:00-7:40/km。回復期間です。無理なく軽く。'};
+if (di===2) return {kind:'recovery', title:'回復ラン（任意）', km:null, optional:true, detail:'30分ほどまで。体が重ければ休んでください。'};
+if (di===3) return {kind:'easy', title:'イージー（短め）', km:5, detail:'ペース 7:00-7:40/km。回復期間です。'};
+if (di===6) return {kind:'easy', title:'イージー', km:6, detail:'ペース 7:00-7:40/km。回復期間なのでロングはしません。'};
+return {kind:'rest', title:'休養日', km:null, detail:''};
+}
+if (mode === 'maintenance'){
+var after = diffDays(dateKey, raceKey);
+var mw = Math.floor((after-15)/7);
+var longKm = (mw % 2 === 0)? 18: 12;
+if (di===1) return easyPlan(8);
+if (di===2) return {kind:'recovery', title:'回復ラン（任意）', km:null, optional:true, detail:'30-40分のみ。余裕がある週だけ実施し、強度は上げません。'};
+if (di===3) return {kind:'point', title:'ポイント練習（テンポ）', km:8, detail:'イージー 2 km ＋ テンポ（6:05-6:15/km） 5 km ＋ イージー 1 km'};
+if (di===6) return {kind:'long', title:'ロング', km:longKm, detail:'ペースはゆっくり（7:20-7:50/km 目安）。維持モードのロングです（隔週で18km／他の週は12km）。'};
+return {kind:'rest', title:'休養日', km:null, detail:''};
+}
+var w = weekIndexFor(dateKey, raceKey);
+if (w < 0) return {kind:'off', title:'準備期間', km:null, detail:'骨格メニューは '+startMonday(raceKey)+' の週から始まります。それまでは今の調子で無理なく走ってください。'};
+var wk = SKELETON[w];
+if (w === TOTAL_WEEKS-1){ /* レース週 */
+if (di===1) return {kind:'easy', title:'イージー（短め）', km:5, detail:'ペース 7:00-7:40/km。脚を軽く回すだけにします。'};
+if (di===3) return {kind:'easy', title:'軽いイージー', km:4, detail:'イージー 4 km ＋ 流し2本。本番に向けて整えます。'};
+if (di===6) return {kind:'race', title:settings.raceName, km:42.2, detail:'本番です。目標タイム '+settings.targetTime+'（目標ペース 約6分24秒/km）。'};
+return {kind:'rest', title:'休養日', km:null, detail:''};
+}
+switch(di){
+case 0: case 4: case 5:
+return {kind:'rest', title:'休養日', km:null, detail:''};
+case 1: {
+var e1 = splitKm(wk).easy;
+return {kind:'easy', title:'イージー', km:e1, detail:'ペース 7:00-7:40/km（会話できる強度）\n仕上げに流し4本（任意）'};
+}
+case 2:
+return {kind:'recovery', title:'回復ラン（任意）', km:null, optional:true, detail:'30-40分のみ。余裕がある週だけ実施し、強度は上げません。'};
+case 3: {
+var p = splitKm(wk).point;
+if (wk.point==='M'){
+return {kind:'point', title:'ポイント練習（Mペース）', km:p,
+detail:'イージー 3 km ＋ Mペース（6:24/km） '+(p-4)+' km ＋ イージー 1 km'};
+}
+return {kind:'point', title:'ポイント練習（テンポ）', km:p,
+detail:'イージー 2 km ＋ テンポ（6:05-6:15/km） '+(p-3)+' km ＋ イージー 1 km'};
+}
+case 6:
+return {kind:'long', title:'ロング', km:wk.long, detail:'ペースはゆっくり（7:20-7:50/km 目安）。基準ランのような高い強度では走りません。'};
+}
+}
+function weekPlannedKm(raceKey, w){
+if (w < 0 || w >= TOTAL_WEEKS) return 0;
+if (w === TOTAL_WEEKS-1) return 51.2; /* 5+4+42.2 */
+return SKELETON[w].total;
+}
+function totalPlannedKmForWeek(settings, w){
+var dates = weekDates(settings.raceDate, w), sum = 0;
+dates.forEach(function(k){ var p = planFor(k, settings); if (p.km) sum += p.km;});
+return Math.round(sum*10)/10;
+}
+/* 承認済みの変更を反映した実効メニュー */
+function effectivePlan(dateKey, settings, overrides){
+if (overrides && overrides[dateKey]) return overrides[dateKey];
+return planFor(dateKey, settings);
+}
+function paceStr(mins, km){
+if (!km ||!mins) return null;
+var s = Math.round(mins*60/km);
+return Math.floor(s/60)+':'+pad2(s%60)+'/km';
+}
+function haversineKm(a, b){
+var R = 6371, rad = Math.PI/180;
+var dLat = (b.lat-a.lat)*rad, dLon = (b.lon-a.lon)*rad;
+var s = Math.sin(dLat/2)*Math.sin(dLat/2) + Math.cos(a.lat*rad)*Math.cos(b.lat*rad)*Math.sin(dLon/2)*Math.sin(dLon/2);
+return 2*R*Math.asin(Math.sqrt(s));
+}
+function activityFromPoints(points, source){
+/* points: [{lat, lon, time(Date|null), hr, cad}] 座標なしの点は距離に使わない */
+var withPos = points.filter(function(p){ return p.lat!==null && p.lat!==undefined && p.lon!==null && p.lon!==undefined;});
+var dist = 0;
+for (var i=1;i<withPos.length;i++) dist += haversineKm(withPos[i-1], withPos[i]);
+var t0 = null, t1 = null;
+points.forEach(function(p){ if (p.time){ if (!t0 || p.time<t0) t0=p.time; if (!t1 || p.time>t1) t1=p.time;}});
+var mins = (t0 && t1)? (t1-t0)/60000: null;
+var hrs = points.filter(function(p){ return p.hr;}).map(function(p){ return p.hr;});
+var cads = points.filter(function(p){ return p.cad;}).map(function(p){ return p.cad;});
+function avg(a){ return a.length? Math.round(a.reduce(function(x,y){ return x+y;},0)/a.length): null;}
+if (!dist &&!mins) return null;
+return {
+dateKey: t0? toKey(t0): null,
+km: Math.round(dist*100)/100,
+mins: mins? Math.round(mins*10)/10: null,
+avgHR: avg(hrs), cadence: avg(cads), source: source
+};
+}
+function findTextByLocalName(node, names){
+/* node配下から localName が names のいずれかの最初の要素テキストを返す */
+var all = node.getElementsByTagName('*');
+for (var i=0;i<all.length;i++){
+if (names.indexOf(all[i].localName) >= 0) return all[i].textContent;
+}
+return null;
+}
+function parseGpx(xmlText){
+if (typeof DOMParser === 'undefined') return null;
+var doc = new DOMParser().parseFromString(xmlText, 'text/xml');
+if (doc.getElementsByTagName('parsererror').length) return null;
+var pts = doc.getElementsByTagName('trkpt'), points = [];
+for (var i=0;i<pts.length;i++){
+var pt = pts[i];
+var timeTxt = findTextByLocalName(pt, ['time']);
+var hrTxt = findTextByLocalName(pt, ['hr','heartRate','heartrate']);
+var cadTxt = findTextByLocalName(pt, ['cad','cadence']);
+points.push({
+lat: parseFloat(pt.getAttribute('lat')), lon: parseFloat(pt.getAttribute('lon')),
+time: timeTxt? new Date(timeTxt): null,
+hr: hrTxt? parseInt(hrTxt,10): null, cad: cadTxt? parseInt(cadTxt,10): null
+});
+}
+if (!points.length) return null;
+return activityFromPoints(points, 'GPX');
+}
+function parseTcx(xmlText){
+if (typeof DOMParser === 'undefined') return null;
+var doc = new DOMParser().parseFromString(xmlText, 'text/xml');
+if (doc.getElementsByTagName('parsererror').length) return null;
+var pts = doc.getElementsByTagName('Trackpoint'), points = [];
+for (var i=0;i<pts.length;i++){
+var pt = pts[i];
+var timeTxt = findTextByLocalName(pt, ['Time']);
+var latTxt = findTextByLocalName(pt, ['LatitudeDegrees']);
+var lonTxt = findTextByLocalName(pt, ['LongitudeDegrees']);
+var hrTxt = findTextByLocalName(pt, ['Value']);
+var cadTxt = findTextByLocalName(pt, ['Cadence']);
+points.push({
+lat: latTxt? parseFloat(latTxt): null, lon: lonTxt? parseFloat(lonTxt): null,
+time: timeTxt? new Date(timeTxt): null,
+hr: hrTxt? parseInt(hrTxt,10): null, cad: cadTxt? parseInt(cadTxt,10): null
+});
+}
+if (!points.length) return null;
+return activityFromPoints(points, 'TCX');
+}
+/* --- FIT最小パーサ --- */
+var FIT_BASE_SIZE = {0:1,1:1,2:1,3:2,4:2,5:4,6:4,7:1,8:4,9:8,10:1,11:2,12:4,13:1,14:8,15:8,16:8};
+function fitReadVal(dv, off, size, type, le){
+try{
+switch(type){
+case 1: return dv.getInt8(off);
+case 3: return le? dv.getInt16(off,true): dv.getInt16(off,false);
+case 4: case 11: return le? dv.getUint16(off,true): dv.getUint16(off,false);
+case 5: return le? dv.getInt32(off,true): dv.getInt32(off,false);
+case 6: case 12: return le? dv.getUint32(off,true): dv.getUint32(off,false);
+case 8: return le? dv.getFloat32(off,true): dv.getFloat32(off,false);
+default: return dv.getUint8(off);
+}
+}catch(e){ return null;}
+}
+function parseFit(buf){
+try{
+var dv = new DataView(buf);
+if (buf.byteLength < 16) return null;
+var hs = dv.getUint8(0);
+if (hs!== 12 && hs!== 14) return null;
+var dataSize = dv.getUint32(4, true);
+var end = Math.min(buf.byteLength, hs + dataSize);
+var defs = {}, off = hs, lastTs = 0;
+var firstTs = null, lastRecTs = null, maxDist = 0;
+var hrSum = 0, hrCnt = 0, cadSum = 0, cadCnt = 0;
+var sess = null;
+while (off < end){
+var h = dv.getUint8(off); off++;
+if (h & 0x80){ /* 圧縮タイムスタンプヘッダ */
+var defC = defs[(h>>5)&3]; if (!defC) return null;
+var toff = h & 0x1F;
+var base = lastTs - (lastTs & 31) + toff;
+if (toff < (lastTs & 31)) base += 32;
+lastTs = base;
+var recC = readFitData(dv, off, defC); off += defC.totalSize;
+applyFitMsg(defC.gnum, recC, true);
+} else if (h & 0x40){ /* 定義メッセージ */
+var lt = h & 0x0F; off++; /* reserved */
+var arch = dv.getUint8(off); off++;
+var le = (arch === 0);
+var gnum = le? dv.getUint16(off,true): dv.getUint16(off,false); off += 2;
+var nf = dv.getUint8(off); off++;
+var fields = [], total = 0;
+for (var i=0;i<nf;i++){
+var fn = dv.getUint8(off), fs = dv.getUint8(off+1), ft = dv.getUint8(off+2) & 0x1F; off += 3;
+fields.push({num:fn, size:fs, type:ft}); total += fs;
+}
+if (h & 0x20){ var nd = dv.getUint8(off); off++; off += nd*3;}
+defs[lt] = {gnum:gnum, le:le, fields:fields, totalSize:total};
+} else { /* データメッセージ */
+var defD = defs[h & 0x0F]; if (!defD) return null;
+var recD = readFitData(dv, off, defD); off += defD.totalSize;
+applyFitMsg(defD.gnum, recD, false);
+}
+}
+function readFitData(dv2, start, def){
+var o = start, obj = {};
+def.fields.forEach(function(f){
+obj[f.num] = fitReadVal(dv2, o, f.size, f.type, def.le);
+o += f.size;
+});
+return obj;
+}
+function applyFitMsg(gnum, r, compressed){
+if (gnum === 20){ /* record */
+var ts = compressed? lastTs: r[253];
+if (ts && ts!== 4294967295){ lastTs = ts; if (!firstTs) firstTs = ts; lastRecTs = ts;}
+if (r[5]!== null && r[5]!== undefined && r[5]!== 4294967295){ var d = r[5]/100; if (d > maxDist) maxDist = d;}
+if (r[3] && r[3]!== 255){ hrSum += r[3]; hrCnt++;}
+if (r[4] && r[4]!== 255){ cadSum += r[4]; cadCnt++;}
+} else if (gnum === 18){ /* session */
+sess = r;
+}
+}
+var distM = maxDist;
+var startFit = null, elapsedS = null;
+if (sess){
+if (sess[9] && sess[9]!== 4294967295) distM = sess[9];
+if (sess[2] && sess[2]!== 4294967295) startFit = sess[2];
+if (sess[7] && sess[7]!== 4294967295) elapsedS = sess[7]/1000;
+}
+if (!startFit) startFit = firstTs;
+if (!distM &&!elapsedS) return null;
+var mins = elapsedS? elapsedS/60: ((lastRecTs && firstTs)? (lastRecTs-firstTs)/60: null);
+var avgHR = (sess && sess[16])? sess[16]: (hrCnt? Math.round(hrSum/hrCnt): null);
+var avgCad = (sess && sess[18])? sess[18]: (cadCnt? Math.round(cadSum/cadCnt): null);
+return {
+dateKey: startFit? toKey(new Date((startFit+631065600)*1000)): null,
+km: Math.round(distM/1000)/100,
+mins: mins? Math.round(mins*10)/10: null,
+avgHR: avgHR, cadence: avgCad, source: 'FIT'
+};
+}catch(e){ return null;}
+}
+/* --- 痛み判定（敏感バージョン） --- */
+function painJudge(records, dateKey){
+var keys = Object.keys(records).filter(function(k){
+return k <= dateKey && records[k] && records[k].pain;
+}).sort();
+if (!keys.length) return {level:'none', label:'未記録', reasons:['痛みの記録がまだありません']};
+var latestKey = keys[keys.length-1];
+if (diffDays(dateKey, latestKey) > 6) return {level:'none', label:'記録なし', reasons:['直近7日に痛みの記録がありません']};
+var recent = keys.filter(function(k){ return diffDays(dateKey, k) <= 6;});
+var painEntries = recent.filter(function(k){ return!records[k].pain.none;});
+var reasons = [];
+var flagsHit = [];
+painEntries.forEach(function(k){
+(records[k].pain.flags||[]).forEach(function(f){ if (flagsHit.indexOf(f)<0) flagsHit.push(f);});
+});
+var maxLevel = 0;
+painEntries.forEach(function(k){ if (records[k].pain.level > maxLevel) maxLevel = records[k].pain.level;});
+if (flagsHit.length){
+reasons.push('要注意のサインがあります（'+flagsHit.join('・')+'）');
+return {level:'red', label:'赤', reasons:reasons, maxLevel:maxLevel};
+}
+if (maxLevel >= 6){
+reasons.push('痛さ'+maxLevel+'が記録されています（6以上は赤）');
+return {level:'red', label:'赤', reasons:reasons, maxLevel:maxLevel};
+}
+if (!painEntries.length){
+return {level:'green', label:'緑', reasons:['直近7日は痛みなしの記録です'], maxLevel:0};
+}
+/* 連続カウント: 新しい順に、痛さ2以上の記録が続く回数（痛みなし記録で止まる） */
+var consec = 0;
+for (var i=keys.length-1;i>=0;i--){
+var p = records[keys[i]].pain;
+if (!p.none && p.level >= 2) consec++; else break;
+}
+var latestPain = records[painEntries[painEntries.length-1]].pain;
+var yellow = false;
+if (latestPain.level >= 3 && latestPain.level <= 5){ yellow = true; reasons.push('痛さ'+latestPain.level+'が記録されています（3〜5は黄）');}
+if (maxLevel >= 3 && latestPain.level < 3){ yellow = true; reasons.push('直近7日に痛さ'+maxLevel+'の記録があります');}
+if (consec >= 2){ yellow = true; reasons.push('痛さ2以上が'+consec+'回続いています');}
+if ((latestPain.timing||[]).indexOf('翌朝') >= 0){ yellow = true; reasons.push('痛みが翌朝も残っています');}
+if (yellow) return {level:'yellow', label:'黄', reasons:reasons, maxLevel:maxLevel};
+reasons.push('痛さ'+latestPain.level+'で、翌朝までのこる様子はありません');
+return {level:'green', label:'緑', reasons:reasons, maxLevel:maxLevel};
+}
+/* --- 疲労シグナル（痛み以外） --- */
+function fmtMDshort(k){ var p = k.split('-'); return (+p[1])+'/'+(+p[2]);}
+function fatigueSignal(records, settings, dateKey){
+var yellows = [], reds = [], hrNote = null;
+var doneKeys = Object.keys(records).filter(function(k){
+var r = records[k]; return k <= dateKey && r && r.post && r.post.done && diffDays(dateKey, k) <= 13;
+}).sort();
+var easyLongHit = null, pointHit = null;
+doneKeys.forEach(function(k){
+var rpe = records[k].post.rpe;
+if (rpe === null || rpe === undefined) return;
+var kind = planFor(k, settings).kind;
+if ((kind === 'easy' || kind === 'long') && rpe >= 7 &&!easyLongHit) easyLongHit = k;
+if (kind === 'point' && rpe >= 8 &&!pointHit) pointHit = k;
+});
+if (easyLongHit) yellows.push('イージー／ロングできつさ7以上がありました（'+fmtMDshort(easyLongHit)+'）');
+if (pointHit) yellows.push('ポイント練習できつさ8以上がありました（'+fmtMDshort(pointHit)+'）');
+/* 睡眠不足2日連続 */
+var run = 0, sleepHit = false;
+for (var d=13; d>=0; d--){
+var k2 = addDays(dateKey, -d);
+var am = records[k2] && records[k2].am;
+var bad = am && (am.sleepH < 6 || am.quality === '悪い');
+run = bad? run+1: 0;
+if (run >= 2) sleepHit = true;
+}
+if (sleepHit) yellows.push('睡眠不足（6時間未満または質「悪い」）が2日続いています');
+/* 赤: きつさ8以上が2回連続（実施記録の並びで） */
+var allDone = Object.keys(records).filter(function(k){
+var r = records[k]; return k <= dateKey && r && r.post && r.post.done && r.post.rpe!== null && r.post.rpe!== undefined;
+}).sort();
+if (allDone.length >= 2){
+var a = allDone[allDone.length-2], b = allDone[allDone.length-1];
+if (records[a].post.rpe >= 8 && records[b].post.rpe >= 8 && diffDays(dateKey, a) <= 13){
+reds.push('きつさ8以上が2回続いています（'+fmtMDshort(a)+'・'+fmtMDshort(b)+'）');
+}
+}
+/* 心拍は補助信号 */
+if (settings.easyAvgHR){
+var base = parseInt(settings.easyAvgHR, 10);
+if (base){
+for (var j=0;j<doneKeys.length;j++){
+var kk = doneKeys[j], hr = records[kk].post.avgHR || (records[kk].act && records[kk].act.avgHR);
+if (hr && planFor(kk, settings).kind === 'easy' && hr >= base+10){
+hrNote = 'イージーで平均心拍が普段（'+base+'bpm）より10bpm以上高い日がありました（'+fmtMDshort(kk)+'）';
+break;
+}
+}
+}
+}
+if (hrNote && yellows.length) yellows.push(hrNote+'（黄の裏付け）');
+var level = reds.length? 'red': (yellows.length? 'yellow': 'green');
+return {level:level, yellows:yellows, reds:reds, hrNote:hrNote};
+}
+/* --- 提案生成 --- */
+function downgradePointPlan(p){
+if (!p || p.kind!== 'point') return null;
+if (p.title.indexOf('Mペース') >= 0){
+return {kind:'point', title:'ポイント練習（テンポ）', km:p.km,
+detail:'イージー 2 km ＋ テンポ（6:05-6:15/km） '+(p.km-3)+' km ＋ イージー 1 km'};
+}
+return {kind:'easy', title:'イージー', km:p.km, detail:'ペース 7:00-7:40/km（会話できる強度）'};
+}
+function findNextDay(settings, overrides, fromKey, days, kinds){
+for (var i=0;i<=days;i++){
+var k = addDays(fromKey, i);
+if (overrides && overrides[k]) continue;
+var p = planFor(k, settings);
+if (kinds.indexOf(p.kind) >= 0) return {date:k, plan:p};
+}
+return null;
+}
+function generateProposals(records, settings, overrides, todayKey){
+var out = [], usedDates = {};
+function push(prop){
+var dup = prop.changes.some(function(c){ return usedDates[c.date];});
+if (dup) return;
+prop.changes.forEach(function(c){ usedDates[c.date] = true;});
+out.push(prop);
+}
+var pain = painJudge(records, todayKey);
+if (pain.level === 'red'){
+var w = rawWeekIndex(todayKey, settings.raceDate);
+var dates = (w >= 0)? weekDates(settings.raceDate, w): [todayKey];
+var changes = [];
+dates.forEach(function(k){
+if (k < todayKey) return;
+var ep = effectivePlan(k, settings, overrides);
+if (['easy','point','long','recovery','race'].indexOf(ep.kind) >= 0 && ep.kind!== 'rest'){
+changes.push({date:k, plan:{kind:'rest', title:'休養日', km:null, detail:'痛みの赤信号のため、この日は休養にします。'}});
+}
+});
+if (changes.length) push({id:'painred-'+dates[0], title:'今週の残りの練習を休養にする', reason:'痛みの判定が赤です（'+pain.reasons.join('／')+'）。無理をせず休んでください。', changes:changes});
+} else if (pain.level === 'yellow'){
+var np = findNextDay(settings, overrides, todayKey, 13, ['point']);
+if (np){
+var ep2 = effectivePlan(np.date, settings, overrides);
+push({id:'painyellow-'+np.date, title:'ポイント練習をイージーに変える', reason:'痛みの判定が黄です（'+pain.reasons.join('／')+'）。黄の週は距離・強度を上げません。',
+changes:[{date:np.date, plan:{kind:'easy', title:'イージー', km:ep2.km, detail:'ペース 7:00-7:40/km（会話できる強度）。痛みの様子を見ながら。'}}]});
+}
+}
+var fat = fatigueSignal(records, settings, todayKey);
+if (fat.level === 'red' || fat.yellows.length >= 2){
+var fp = findNextDay(settings, overrides, todayKey, 13, ['point']);
+if (fp){
+var dg = downgradePointPlan(fp.plan);
+if (dg) push({id:'fatigue-'+fp.date, title:'次のポイント練習を1段下げる', reason:'疲労サインが出ています（'+fat.reds.concat(fat.yellows).join('／')+'）。', changes:[{date:fp.date, plan:dg}]});
+}
+if (fat.level === 'red'){
+var fl = findNextDay(settings, overrides, todayKey, 13, ['long']);
+if (fl && fl.plan.km){
+var nk = Math.max(5, Math.round(fl.plan.km*0.9));
+push({id:'fatigue-long-'+fl.date, title:'次のロングを約1割短くする', reason:'疲労の赤サインが出ています。翌週のロングを '+fl.plan.km+'km → '+nk+'km にします。',
+changes:[{date:fl.date, plan:{kind:'long', title:'ロング', km:nk, detail:'ペースはゆっくり（7:20-7:50/km 目安）。疲労の赤サインのため短縮しています。'}}]});
+}
+}
+}
+/* 振替: できなかったポイント/ロングを翌日の軽い日へ */
+var judgeCache = painJudge(records, todayKey);
+for (var back=0; back<=2; back++){
+var mk = addDays(todayKey, -back);
+var mp = planFor(mk, settings);
+if (mp.kind!== 'point' && mp.kind!== 'long') continue;
+var mr = records[mk];
+if (!mr ||!mr.post || mr.post.done || mr.act) continue;
+var nd = addDays(mk, 1);
+if (nd < todayKey) continue;
+if (overrides && overrides[nd]) continue;
+var npPlan = planFor(nd, settings);
+if (npPlan.kind!== 'rest' && npPlan.kind!== 'recovery') continue;
+var dayAfter = planFor(addDays(nd, 1), settings);
+if (dayAfter.kind === 'long') continue; /* ロング前日には入れない */
+if (judgeCache.level!== 'green' && judgeCache.level!== 'none') continue;
+push({id:'slide-'+mk+'-'+nd, title:mp.title+' を翌日にずらす', reason:fmtMDshort(mk)+' の'+mp.title+'が未実施でした。翌日が軽い日で、痛みも緑のためスライドを提案します（取り戻すための追加ではありません）。',
+changes:[{date:nd, plan:mp}]});
+}
+/* 予定外ラン: 休養日に強く走った → 次のポイント格下げ */
+for (var b2=0; b2<=6; b2++){
+var uk = addDays(todayKey, -b2);
+if (planFor(uk, settings).kind!== 'rest') continue;
+var ur = records[uk];
+if (!ur) continue;
+var did = (ur.post && ur.post.done) || ur.act;
+var rpe = ur.post && ur.post.rpe;
+if (!did ||!(rpe >= 7)) continue;
+var up = findNextDay(settings, overrides, todayKey, 13, ['point']);
+if (up){
+var dg2 = downgradePointPlan(up.plan);
+if (dg2) push({id:'unplanned-'+uk, title:'予定外ランの分、次のポイントを1段下げる', reason:fmtMDshort(uk)+' は休養日でしたが、きつさ'+rpe+'で走っています。実績として数えたうえで、後ろの負荷を調整します。', changes:[{date:up.date, plan:dg2}]});
+}
+break;
+}
+return out;
+}
+/* --- 痛み × 週間距離（直近8週） --- */
+function painWeekCorrelation(records, settings, todayKey){
+var rw = rawWeekIndex(todayKey, settings.raceDate);
+if (rw < 0) rw = 0;
+var out = [];
+for (var w = Math.max(0, rw-7); w <= rw; w++){
+var dates = weekDates(settings.raceDate, w);
+var maxPain = null;
+dates.forEach(function(k){
+var r = records[k];
+if (r && r.pain &&!r.pain.none){ if (maxPain === null || r.pain.level > maxPain) maxPain = r.pain.level;}
+});
+out.push({label:(w < TOTAL_WEEKS? '第'+(w+1)+'週': fmtMDshort(dates[0])+'の週'), km:totalPlannedKmForWeek(settings, w), maxPain:maxPain});
+}
+return out;
+}
+/* --- フォームのドリル提案 --- */
+function formAdvice(f){
+var out = [];
+if (!f) return out;
+if (f.pitch && f.pitch < 170) out.push('ピッチが低めです。流しの中で少しだけ回転を上げる、メトロノーム（170〜180spm）に合わせる短いランなどがおすすめです。');
+if (f.pitch && f.pitch >= 180) out.push('ピッチは十分に高めです。無理に上げず、今の感覚を維持しましょう。');
+if (f.land === 'かかと' && f.pos === '前方') out.push('かかと着地で、着地が前方に出ている傾向です。「着地を体の真下に」を意識するドリル（その場で足踏み→そのまま前進）がおすすめです。');
+else if (f.land === 'かかと') out.push('かかと着地の傾向です。着地の仕方を無理に変えるより、着地位置が真下に近づいているかを見ていきましょう。');
+else if (f.pos === '前方') out.push('着地が前方に出る傾向です。真下着地を意識した短い流しを取り入れてみてください。');
+if (f.lean === '後傾') out.push('後傾の傾向です。足首から軽く前に倒れる感覚で走ると、着地が真下に近づきます。');
+if (f.lean === '前傾') out.push('前傾が強めの傾向です。胸を張って視線を前に向けると安定します。');
+if (!out.length) out.push('大きな傾向は見られません。今のフォームを維持しましょう。');
+return out;
+}
+/* --- AI相談用要約 --- */
+function buildAiSummary(records, settings, todayKey){
+var lines = [];
+lines.push('ランニング練習の相談');
+lines.push('目標レース：'+settings.raceName+'（'+settings.raceDate+'）目標タイム '+settings.targetTime);
+lines.push('');
+lines.push('直近4週の実績：');
+var rw = rawWeekIndex(todayKey, settings.raceDate); if (rw < 0) rw = 0;
+for (var w = Math.max(0, rw-3); w <= rw; w++){
+var dates = weekDates(settings.raceDate, w);
+var km = 0, runs = 0, rpes = [], sleeps = [], maxPain = null;
+dates.forEach(function(k){
+var r = records[k]; if (!r) return;
+var did = (r.post && r.post.done) || r.act;
+if (did){
+runs++;
+if (r.act && r.act.km) km += r.act.km;
+else { var p = planFor(k, settings); if (p.km) km += p.km;}
+}
+if (r.post && r.post.rpe) rpes.push(r.post.rpe);
+if (r.am && r.am.sleepH) sleeps.push(r.am.sleepH);
+if (r.pain &&!r.pain.none){ if (maxPain === null || r.pain.level > maxPain) maxPain = r.pain.level;}
+});
+function avgS(a){ return a.length? Math.round(a.reduce(function(x,y){ return x+y;},0)/a.length*10)/10: null;}
+var seg = '- '+(w < TOTAL_WEEKS? '第'+(w+1)+'週': fmtMDshort(dates[0])+'の週')+'：実施 '+Math.round(km*10)/10+' km（'+runs+'回）';
+if (avgS(rpes)!== null) seg += '、きつさ平均 '+avgS(rpes);
+if (avgS(sleeps)!== null) seg += '、睡眠平均 '+avgS(sleeps)+'時間';
+seg += '、その週の最大の痛さ '+(maxPain === null? '記録なし': maxPain);
+lines.push(seg);
+}
+var pj = painJudge(records, todayKey);
+lines.push('');
+lines.push('現在の痛みの判定：'+pj.label+'（'+pj.reasons.join('／')+'）');
+var fs = fatigueSignal(records, settings, todayKey);
+lines.push('疲労サイン：'+(fs.level === 'green'? 'なし': fs.reds.concat(fs.yellows).join('／')));
+lines.push('');
+lines.push('相談：この内容で、来週の練習の組み方についてアドバイスをお願いします。');
+lines.push('※この要約にGPSの経路や動画は含まれていません。');
+return lines.join('\n');
+}
+</script>
+
+<script>
+/* ===== 画面と保存 ===== */
+function el(id){ return document.getElementById(id); }
+var LS_SET='runapp2.settings.v1', LS_REC='runapp2.records.v1', LS_OVR='runapp2.overrides.v1', LS_PROP='runapp2.proposals.v1';
+var OLD_SET='runapp.settings.v1', OLD_REC='runapp.records.v1';
+var DEFAULT_SETTINGS={raceName:'かがわマラソン2027', raceDate:'2027-03-21', targetTime:'4時間30分', easyAvgHR:''};
+function loadJSON(key, fallback){
+  try{ var v=localStorage.getItem(key); return v?JSON.parse(v):fallback; }catch(e){ return fallback; }
+}
+function saveJSON(key, v){ try{ localStorage.setItem(key, JSON.stringify(v)); }catch(e){} }
+/* 第1段階からの移行 */
+(function migrate(){
+  try{
+    if (!localStorage.getItem(LS_SET) && localStorage.getItem(OLD_SET)) localStorage.setItem(LS_SET, localStorage.getItem(OLD_SET));
+    if (!localStorage.getItem(LS_REC) && localStorage.getItem(OLD_REC)) localStorage.setItem(LS_REC, localStorage.getItem(OLD_REC));
+  }catch(e){}
+})();
+var settings = Object.assign({}, DEFAULT_SETTINGS, loadJSON(LS_SET, {}));
+var records = loadJSON(LS_REC, {});
+var overrides = loadJSON(LS_OVR, {});
+var proposalsLog = loadJSON(LS_PROP, []);
+function todayKey(){ return toKey(new Date()); }
+function recOf(k){ return records[k] || {am:null, post:null, pain:null, act:null, form:null}; }
+function setRec(k, patch){ records[k]=Object.assign(recOf(k), patch); saveJSON(LS_REC, records); }
+function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+var DOW=['月','火','水','木','金','土','日'];
+function fmtJP(k){ var d=fromKey(k); return d.getFullYear()+'年'+(d.getMonth()+1)+'月'+d.getDate()+'日（'+DOW[dowIdx(k)]+'）'; }
+function fmtMD(k){ var d=fromKey(k); return (d.getMonth()+1)+'/'+d.getDate(); }
+
+function makeSeg(elm, options, initial, onChange){
+  elm.innerHTML='';
+  options.forEach(function(opt){
+    var b=document.createElement('button');
+    b.type='button'; b.textContent=opt;
+    if (opt===initial) b.className='on';
+    b.addEventListener('click', function(){
+      Array.prototype.forEach.call(elm.children, function(c){ c.className=''; });
+      b.className='on'; elm.dataset.value=opt; if (onChange) onChange(opt);
+    });
+    elm.appendChild(b);
+  });
+  elm.dataset.value=initial;
+}
+function segVal(elm){ return elm.dataset.value; }
+function segSet(elm, v){
+  Array.prototype.forEach.call(elm.children, function(c){ c.className=(c.textContent===v)?'on':''; });
+  elm.dataset.value=v;
+}
+function makeChecks(elm, options, extraClass){
+  elm.innerHTML='';
+  options.forEach(function(opt){
+    var lab=document.createElement('label');
+    if (extraClass) lab.className=extraClass;
+    lab.innerHTML='<input type="checkbox" value="'+esc(opt)+'"> '+esc(opt);
+    lab.querySelector('input').addEventListener('change', function(ev){
+      lab.className = (extraClass?extraClass+' ':'') + (ev.target.checked ? 'on' : '');
+      if (!ev.target.checked) lab.className = extraClass || '';
+    });
+    elm.appendChild(lab);
+  });
+}
+function checksVal(elm){
+  var out=[];
+  Array.prototype.forEach.call(elm.children, function(lab){
+    var inp=lab.querySelector('input'); if (inp.checked) out.push(inp.value);
+  });
+  return out;
+}
+function checksSet(elm, vals){
+  Array.prototype.forEach.call(elm.children, function(lab){
+    var inp=lab.querySelector('input');
+    inp.checked = (vals||[]).indexOf(inp.value)>=0;
+    var base = lab.className.replace(' on','').replace('on','').trim();
+    lab.className = inp.checked ? (base?base+' on':'on') : base;
+  });
+}
+
+/* --- ヘッダーとホーム --- */
+function renderHeader(){
+  var days = diffDays(settings.raceDate, todayKey());
+  el('hdr-countdown').textContent = days>0 ? '本番まで あと'+days+'日' : (days===0 ? '今日が本番です' : '大会は終了しました');
+  el('hdr-race').textContent = settings.raceName+' ・ '+fmtJP(settings.raceDate);
+}
+function statusHTML(label, rec){
+  return label+'：'+(rec ? '<span class="done">入力済み</span>' : '<span class="yet">未入力</span>');
+}
+function effPlan(k){ return effectivePlan(k, settings, overrides); }
+function badgeHTML(j){
+  var cls = j.level, txt = j.level==='none' ? j.label : '痛み '+j.label;
+  return '<span class="badge '+cls+'">'+esc(txt)+'</span>';
+}
+function renderSignals(){
+  var t = todayKey();
+  var pj = painJudge(records, t);
+  var fs = fatigueSignal(records, settings, t);
+  var html = '';
+  html += '<div style="margin-bottom:6px">'+badgeHTML(pj)+' <span class="small">痛みの判定（直近7日）</span></div>';
+  html += '<div class="small" style="color:var(--ink)">'+pj.reasons.map(esc).join('／')+'</div>';
+  if (fs.level === 'red'){
+    html += '<div class="caution" style="border-color:#f3b8b8; background:#fdecec"><strong>疲労の赤サイン：</strong>'+fs.reds.map(esc).join('／')+(fs.yellows.length ? '<br>'+fs.yellows.map(esc).join('／') : '')+'</div>';
+  } else if (fs.yellows.length === 1){
+    html += '<div class="caution"><strong>注意：</strong>'+esc(fs.yellows[0])+'<br>サインが1つだけなので、メニューの変更提案は出していません。もう1つ出たら下げる提案をします。</div>';
+  } else if (fs.yellows.length >= 2){
+    html += '<div class="caution"><strong>疲労サインが'+fs.yellows.length+'つ出ています：</strong><br>'+fs.yellows.map(esc).join('／')+'</div>';
+  } else {
+    html += '<div class="small" style="margin-top:6px">疲労サインは出ていません。</div>';
+  }
+  el('signal-box').innerHTML = html;
+  if (pj.level === 'red'){
+    el('painred-banner').innerHTML = '<div class="banner-red"><strong>痛みの赤信号が出ています。</strong><br>走るのは控えてください。このアプリは診断はしません。痛みが続く・強い場合は、整形外科・スポーツ整形の受診を検討してください。</div>';
+  } else {
+    el('painred-banner').innerHTML = '';
+  }
+}
+function renderCorr(){
+  var rows = painWeekCorrelation(records, settings, todayKey());
+  if (!rows.length){ el('corr-box').innerHTML = '<div class="small">データがありません。</div>'; return; }
+  el('corr-box').innerHTML = rows.map(function(r){
+    var painTxt = (r.maxPain === null) ? '痛み：記録なし' : '最大の痛さ：<span class="'+(r.maxPain>=6?'pain-hi':(r.maxPain>=3?'pain-mid':''))+'">'+r.maxPain+'</span>';
+    return '<div class="corr-row"><span>'+esc(r.label)+'</span><span>予定 '+r.km+' km</span><span>'+painTxt+'</span></div>';
+  }).join('');
+}
+function decidedIds(){
+  var s = {};
+  proposalsLog.forEach(function(p){ s[p.id] = true; });
+  return s;
+}
+var currentProposals = [];
+function renderProposals(){
+  var dec = decidedIds();
+  currentProposals = generateProposals(records, settings, overrides, todayKey()).filter(function(p){ return !dec[p.id]; });
+  if (!currentProposals.length){ el('prop-box').innerHTML=''; return; }
+  el('prop-box').innerHTML = currentProposals.map(function(p, i){
+    var ch = p.changes.map(function(c){
+      var before = planFor(c.date, settings);
+      return fmtJP(c.date)+'\n'+before.title+(before.km?' '+before.km+'km':'')+' → '+c.plan.title+(c.plan.km?' '+c.plan.km+'km':'');
+    }).join('\n');
+    return '<div class="card prop-card"><div class="ptitle">提案：'+esc(p.title)+'</div>'
+      + '<div class="preason">'+esc(p.reason)+'</div>'
+      + '<div class="pchange">'+esc(ch)+'</div>'
+      + '<div class="btnrow"><button data-prop="'+i+'" data-act="ok">承認する</button><button class="sub" data-prop="'+i+'" data-act="ng">却下する</button></div></div>';
+  }).join('');
+}
+el('prop-box').addEventListener('click', function(ev){
+  var b = ev.target;
+  if (!b || !b.dataset || b.dataset.prop === undefined) return;
+  var p = currentProposals[parseInt(b.dataset.prop,10)];
+  if (!p) return;
+  var now = new Date();
+  if (b.dataset.act === 'ok'){
+    p.changes.forEach(function(c){ overrides[c.date] = c.plan; });
+    saveJSON(LS_OVR, overrides);
+    proposalsLog.push({id:p.id, ts:now.toISOString(), title:p.title, decision:'承認'});
+  } else {
+    proposalsLog.push({id:p.id, ts:now.toISOString(), title:p.title, decision:'却下'});
+  }
+  saveJSON(LS_PROP, proposalsLog);
+  renderAll();
+});
+function renderHome(){
+  renderHeader();
+  var t=todayKey(), plan=effPlan(t), r=recOf(t);
+  el('today-kind').textContent = plan.title + (plan.km ? '　'+plan.km+' km' : '') + (overrides[t] ? '（変更済み）' : '');
+  el('today-kind').className = 'kind' + (plan.kind==='rest' ? ' rest-day' : '');
+  el('today-detail').textContent = plan.detail || '';
+  var w = rawWeekIndex(t, settings.raceDate);
+  var mode = postRaceMode(t, settings.raceDate);
+  var meta = fmtJP(t);
+  if (mode === 'recovery') meta += ' ・ 大会後の回復期間';
+  else if (mode === 'maintenance') meta += ' ・ 維持モード';
+  else if (w>=0 && w<TOTAL_WEEKS) meta += ' ・ 第'+(w+1)+'週 / 全'+TOTAL_WEEKS+'週';
+  el('today-meta').textContent = meta;
+  el('st-am').innerHTML = statusHTML('朝チェック', r.am);
+  el('st-post').innerHTML = statusHTML('ラン後チェック', r.post) + (r.act ? '　<span class="done">Garmin取り込み済み</span>' : '');
+  el('st-pain').innerHTML = statusHTML('痛みの記録', r.pain);
+  renderSignals();
+  renderProposals();
+  renderCorr();
+  var html='';
+  if (w>=0){
+    var dates=weekDates(settings.raceDate, w), done=0, doneKm=0;
+    dates.forEach(function(k){
+      var rr=recOf(k);
+      if ((rr.post && rr.post.done) || rr.act) done++;
+      if (rr.act && rr.act.km) doneKm += rr.act.km;
+    });
+    html += '<div class="kv"><span>この週の予定距離（基本3回＋本番）</span><b>約'+totalPlannedKmForWeek(settings, w)+' km</b></div>';
+    html += '<div class="kv"><span>実施済みの日数</span><b>'+done+' 日</b></div>';
+    if (doneKm) html += '<div class="kv"><span>取り込み済みの距離</span><b>'+Math.round(doneKm*10)/10+' km</b></div>';
+    html += '<div class="small">水曜の回復ラン（任意）は予定距離に含みません。</div>';
+  } else {
+    html = '<div class="small">骨格メニューの期間外です。</div>';
+  }
+  el('week-summary').innerHTML = html;
+}
+
+/* --- 週間 --- */
+function maxViewWeek(){
+  var rw = rawWeekIndex(todayKey(), settings.raceDate);
+  return Math.max(TOTAL_WEEKS-1, (rw<0?0:rw)+8);
+}
+var viewWeek = (function(){
+  var rw = rawWeekIndex(todayKey(), settings.raceDate);
+  return Math.min(Math.max(rw, 0), Math.max(TOTAL_WEEKS-1, rw));
+})();
+function weekTitle(w, dates){
+  var mode = postRaceMode(dates[3], settings.raceDate);
+  if (mode === 'recovery') return '大会後・回復期間（'+fmtMD(dates[0])+'〜'+fmtMD(dates[6])+'）';
+  if (mode === 'maintenance') return '維持モード（'+fmtMD(dates[0])+'〜'+fmtMD(dates[6])+'）';
+  return '第'+(w+1)+'週（'+fmtMD(dates[0])+'〜'+fmtMD(dates[6])+'）';
+}
+function renderWeek(){
+  var dates=weekDates(settings.raceDate, viewWeek), t=todayKey();
+  el('wk-title').textContent = weekTitle(viewWeek, dates);
+  el('wk-prev').disabled = viewWeek<=0;
+  el('wk-next').disabled = viewWeek>=maxViewWeek();
+  var html='';
+  dates.forEach(function(k){
+    var p=effPlan(k), r=recOf(k), mark='';
+    if (r.act) mark = '実施 ✓';
+    else if (r.post) mark = r.post.done ? '実施 ✓' : '未実施';
+    html += '<div class="day'+(k===t?' today':'')+(overrides[k]?' changed':'')+'">'
+      + '<div class="dow"><div class="w">'+DOW[dowIdx(k)]+'</div><div class="d">'+fmtMD(k)+'</div></div>'
+      + '<div class="body"><div class="kind">'+esc(p.title)+(p.km?'　'+p.km+' km':'')
+      + (p.optional?' <span class="small">（任意）</span>':'')+(overrides[k]?' <span class="small">（変更済み）</span>':'')+'</div>'
+      + (p.detail?'<div class="detail">'+esc(p.detail)+'</div>':'')
+      + (r.act?'<div class="detail">実績：'+r.act.km+' km'+(r.act.mins?' ・ '+r.act.mins+'分':'')+(r.act.mins&&r.act.km?' ・ '+paceStr(r.act.mins, r.act.km):'')+'</div>':'')
+      + '</div>'
+      + '<div class="mark">'+mark+'</div></div>';
+  });
+  el('week-list').innerHTML=html;
+}
+</script>
+
+<script>
+/* --- 記録フォーム --- */
+var PAIN_PARTS=['脛の内側','脛の前側','膝','アキレス腱','ふくらはぎ','足裏','足首','その他'];
+var PAIN_TIMING=['走っている時','走った後','翌朝','日常動作でも'];
+function buildRecordControls(){
+  var sel=el('am-sleep'); sel.innerHTML='';
+  for (var h=3.5; h<=10.001; h+=0.5){
+    var o=document.createElement('option'); o.value=h.toFixed(1); o.textContent=h.toFixed(1)+' 時間';
+    sel.appendChild(o);
+  }
+  sel.value='7.0';
+  makeSeg(el('am-quality'), ['良い','普通','悪い'], '普通');
+  makeSeg(el('am-cond'), ['良い','普通','疲れている','張り・痛みあり'], '普通');
+  makeSeg(el('post-done'), ['実施した','実施しなかった'], '実施した', function(v){
+    el('post-rpe').disabled = (v!=='実施した');
+  });
+  makeSeg(el('pain-none'), ['痛みなし','痛みあり'], '痛みなし', function(v){
+    el('pain-fields').style.display = (v==='痛みなし') ? 'none' : '';
+  });
+  el('pain-fields').style.display='none';
+  var pp=el('pain-part'); pp.innerHTML='';
+  PAIN_PARTS.forEach(function(p){ var o=document.createElement('option'); o.value=p; o.textContent=p; pp.appendChild(o); });
+  makeSeg(el('pain-side'), ['左','右','両方'], '右');
+  makeChecks(el('pain-timing'), PAIN_TIMING, '');
+  makeChecks(el('pain-flags'), PAIN_FLAGS, 'redflag');
+  el('post-rpe').addEventListener('input', function(){ el('post-rpe-val').textContent=this.value; });
+  el('pain-level').addEventListener('input', function(){ el('pain-level-val').textContent=this.value; });
+  el('rec-date').value=todayKey();
+  el('rec-date').addEventListener('change', function(){ fillRecordForm(this.value); });
+}
+function renderActBox(k){
+  var r = recOf(k);
+  if (r.act){
+    var a = r.act;
+    el('act-box').innerHTML = '<div class="caution" style="margin-top:0">取り込み済み（'+esc(a.source||'')+'）：'+a.km+' km'
+      + (a.mins ? ' ・ '+a.mins+'分' : '') + (a.mins && a.km ? ' ・ 平均 '+paceStr(a.mins, a.km) : '')
+      + (a.avgHR ? ' ・ 平均心拍 '+a.avgHR+'bpm' : '') + (a.cadence ? ' ・ ピッチ '+a.cadence+'spm' : '') + '</div>';
+  } else {
+    el('act-box').innerHTML = '';
+  }
+}
+function fillRecordForm(k){
+  var r=recOf(k);
+  renderActBox(k);
+  if (r.am){
+    el('am-sleep').value=String(r.am.sleepH);
+    segSet(el('am-quality'), r.am.quality); segSet(el('am-cond'), r.am.cond);
+    el('am-memo').value=r.am.memo||'';
+  } else {
+    el('am-sleep').value='7.0'; segSet(el('am-quality'),'普通'); segSet(el('am-cond'),'普通'); el('am-memo').value='';
+  }
+  if (r.post){
+    segSet(el('post-done'), r.post.done?'実施した':'実施しなかった');
+    el('post-rpe').disabled=!r.post.done;
+    el('post-rpe').value=r.post.rpe||5; el('post-rpe-val').textContent=r.post.rpe||5;
+    el('post-hr').value = r.post.avgHR || '';
+  } else {
+    segSet(el('post-done'),'実施した'); el('post-rpe').disabled=false;
+    el('post-rpe').value=5; el('post-rpe-val').textContent=5; el('post-hr').value='';
+  }
+  if (r.pain){
+    if (r.pain.none){
+      segSet(el('pain-none'),'痛みなし'); el('pain-fields').style.display='none';
+      checksSet(el('pain-flags'), []);
+    } else {
+      segSet(el('pain-none'),'痛みあり'); el('pain-fields').style.display='';
+      el('pain-part').value=r.pain.part; segSet(el('pain-side'), r.pain.side||'右');
+      el('pain-level').value=r.pain.level; el('pain-level-val').textContent=r.pain.level;
+      el('pain-memo').value=r.pain.memo||'';
+      checksSet(el('pain-timing'), r.pain.timing||[]);
+      checksSet(el('pain-flags'), r.pain.flags||[]);
+    }
+  } else {
+    segSet(el('pain-none'),'痛みなし'); el('pain-fields').style.display='none';
+    el('pain-level').value=2; el('pain-level-val').textContent=2; el('pain-memo').value='';
+    checksSet(el('pain-timing'), []); checksSet(el('pain-flags'), []);
+  }
+  renderHistory();
+}
+function renderHistory(){
+  var keys=Object.keys(records).filter(function(k){
+    var r=records[k]; return r.am||r.post||r.pain||r.act;
+  }).sort().reverse().slice(0,14);
+  if (!keys.length){ el('history').innerHTML='<div class="small">まだ記録がありません。</div>'; return; }
+  el('history').innerHTML = keys.map(function(k){
+    var r=records[k], lines=[];
+    if (r.am) lines.push('朝：睡眠 '+r.am.sleepH+'時間（'+r.am.quality+'）／体調 '+r.am.cond);
+    if (r.act) lines.push('実績（'+(r.act.source||'取り込み')+'）：'+r.act.km+' km'+(r.act.mins?' ・ '+r.act.mins+'分 ・ '+paceStr(r.act.mins, r.act.km):'')+(r.act.avgHR?' ・ 平均心拍 '+r.act.avgHR+'bpm':'')+(r.act.cadence?' ・ ピッチ '+r.act.cadence+'spm':''));
+    if (r.post) lines.push('ラン後：'+(r.post.done?('実施、きつさ '+(r.post.rpe==null?'—':r.post.rpe)+(r.post.avgHR?'、平均心拍 '+r.post.avgHR+'bpm':'')):'未実施'));
+    if (r.pain) lines.push(r.pain.none ? '痛み：なし' : '痛み：'+r.pain.part+'（'+(r.pain.side||'')+'）痛さ '+r.pain.level+(r.pain.timing&&r.pain.timing.length?'／'+r.pain.timing.join('・'):'')+(r.pain.flags&&r.pain.flags.length?'／要注意：'+r.pain.flags.join('・'):''));
+    return '<div class="hist-item"><span class="hdate">'+fmtJP(k)+'</span><br>'+lines.map(esc).join('<br>')+'</div>';
+  }).join('');
+}
+
+/* --- 保存ボタン --- */
+function note(id, msg){ el(id).textContent=msg; setTimeout(function(){ el(id).textContent=''; }, 3000); }
+el('btn-save-am').addEventListener('click', function(){
+  var k=el('rec-date').value||todayKey();
+  setRec(k, {am:{sleepH:parseFloat(el('am-sleep').value), quality:segVal(el('am-quality')), cond:segVal(el('am-cond')), memo:el('am-memo').value}});
+  note('note-am','保存しました'); renderHome();
+});
+el('btn-save-post').addEventListener('click', function(){
+  var k=el('rec-date').value||todayKey();
+  var done = segVal(el('post-done'))==='実施した';
+  var hr = parseInt(el('post-hr').value, 10);
+  setRec(k, {post:{done:done, rpe:done?parseInt(el('post-rpe').value,10):null, avgHR:(done && hr)?hr:null}});
+  note('note-post','保存しました'); renderAll();
+});
+el('btn-save-pain').addEventListener('click', function(){
+  var k=el('rec-date').value||todayKey();
+  if (segVal(el('pain-none'))==='痛みなし'){
+    setRec(k, {pain:{none:true, flags:[]}});
+  } else {
+    setRec(k, {pain:{none:false, part:el('pain-part').value, side:segVal(el('pain-side')), level:parseInt(el('pain-level').value,10), timing:checksVal(el('pain-timing')), flags:checksVal(el('pain-flags')), memo:el('pain-memo').value}});
+  }
+  note('note-pain','保存しました'); renderAll(); fillRecordForm(k);
+});
+
+/* --- Garmin取り込み --- */
+el('btn-garmin').addEventListener('click', function(){ el('file-garmin').click(); });
+el('file-garmin').addEventListener('change', function(){
+  var f=this.files[0]; if (!f) return;
+  var name = f.name.toLowerCase();
+  function doneAct(act, srcLabel){
+    if (!act || (!act.km && !act.mins)){ note('note-garmin','読み込めませんでした（対応形式かご確認ください）'); return; }
+    var k = act.dateKey || todayKey();
+    var r = recOf(k);
+    var cleanAct = {km:act.km||0, mins:act.mins||null, avgHR:act.avgHR||null, cadence:act.cadence||null, source:act.source||srcLabel};
+    cleanAct.pace = (cleanAct.mins && cleanAct.km) ? paceStr(cleanAct.mins, cleanAct.km) : null;
+    var post = r.post ? Object.assign({}, r.post) : {rpe:null, avgHR:null};
+    post.done = true;
+    if (!post.avgHR && cleanAct.avgHR) post.avgHR = cleanAct.avgHR;
+    records[k] = Object.assign({}, r, {act:cleanAct, post:post});
+    saveJSON(LS_REC, records);
+    el('rec-date').value = k;
+    note('note-garmin','取り込みました：'+fmtJP(k)+' '+cleanAct.km+' km'+(cleanAct.mins?' ・ '+cleanAct.mins+'分':''));
+    renderAll(); fillRecordForm(k);
+  }
+  function fail(){ note('note-garmin','読み込めませんでした（対応形式かご確認ください）'); }
+  try{
+    if (name.slice(-4) === '.fit'){
+      var rd1 = new FileReader();
+      rd1.onload = function(){ var a = parseFit(rd1.result); a ? doneAct(a,'FIT') : fail(); };
+      rd1.onerror = fail;
+      rd1.readAsArrayBuffer(f);
+    } else if (name.slice(-4) === '.gpx' || name.slice(-4) === '.tcx'){
+      var rd2 = new FileReader();
+      rd2.onload = function(){
+        var a = name.slice(-4) === '.gpx' ? parseGpx(rd2.result) : parseTcx(rd2.result);
+        a ? doneAct(a, name.slice(-3).toUpperCase()) : fail();
+      };
+      rd2.onerror = fail;
+      rd2.readAsText(f);
+    } else { fail(); }
+  }catch(e){ fail(); }
+  this.value='';
+});
+
+/* --- フォームタブ --- */
+var tapState = {active:false, start:0, count:0, timer:null};
+function buildFormControls(){
+  makeSeg(el('form-lean'), ['前傾','適正','後傾'], '適正');
+  makeSeg(el('form-land'), ['かかと','中足部','前足部'], '中足部');
+  makeSeg(el('form-pos'), ['真下','前方'], '真下');
+  el('form-date').value = todayKey();
+  el('form-date').addEventListener('change', function(){ fillFormForm(this.value); });
+  el('form-video-file').addEventListener('change', function(){
+    var f=this.files[0]; if (!f) return;
+    var v=el('form-video');
+    v.src = URL.createObjectURL(f);
+    v.style.display='';
+  });
+  Array.prototype.forEach.call(el('form-rates').querySelectorAll('button[data-rate]'), function(b){
+    b.addEventListener('click', function(){
+      el('form-video').playbackRate = parseFloat(b.dataset.rate);
+      Array.prototype.forEach.call(el('form-rates').querySelectorAll('button[data-rate]'), function(x){ x.className=''; });
+      b.className='on';
+    });
+  });
+  el('frm-back').addEventListener('click', function(){ var v=el('form-video'); v.pause(); v.currentTime = Math.max(0, v.currentTime - 1/30); });
+  el('frm-fwd').addEventListener('click', function(){ var v=el('form-video'); v.pause(); v.currentTime = v.currentTime + 1/30; });
+  el('tap-start').addEventListener('click', function(){
+    tapState = {active:true, start:Date.now(), count:0, timer:null};
+    el('tap-btn').disabled = false;
+    el('tap-info').textContent = '計測中… 着地のたびにタップ（0歩）';
+    tapState.timer = setInterval(function(){
+      var remain = 10 - (Date.now()-tapState.start)/1000;
+      if (remain <= 0) finishTap();
+      else el('tap-info').textContent = '計測中… 残り '+remain.toFixed(1)+' 秒（'+tapState.count+'歩）';
+    }, 200);
+  });
+  el('tap-btn').addEventListener('click', function(){
+    if (!tapState.active) return;
+    tapState.count++;
+    el('tap-info').textContent = '計測中…（'+tapState.count+'歩）';
+  });
+  el('btn-save-form').addEventListener('click', function(){
+    var k = el('form-date').value || todayKey();
+    var pitch = parseInt(el('form-pitch').value, 10);
+    var f = {pitch: pitch||null, lean:segVal(el('form-lean')), land:segVal(el('form-land')), pos:segVal(el('form-pos')), memo:el('form-memo').value};
+    setRec(k, {form:f});
+    note('note-form','保存しました');
+    renderFormAdvice(f); renderFormHistory();
+  });
+}
+function finishTap(){
+  if (!tapState.active) return;
+  tapState.active = false;
+  clearInterval(tapState.timer);
+  el('tap-btn').disabled = true;
+  var spm = tapState.count*6;
+  el('tap-info').textContent = '10秒で '+tapState.count+' 歩 → ピッチ 約 '+spm+' spm';
+  if (spm) el('form-pitch').value = spm;
+}
+function renderFormAdvice(f){
+  var adv = formAdvice(f);
+  el('form-advice').innerHTML = adv.length ? '<div class="caution" style="margin-top:10px"><strong>ドリルのヒント：</strong><br>'+adv.map(esc).join('<br>')+'</div>' : '';
+}
+function fillFormForm(k){
+  var r = recOf(k);
+  if (r.form){
+    el('form-pitch').value = r.form.pitch || '';
+    segSet(el('form-lean'), r.form.lean || '適正');
+    segSet(el('form-land'), r.form.land || '中足部');
+    segSet(el('form-pos'), r.form.pos || '真下');
+    el('form-memo').value = r.form.memo || '';
+    renderFormAdvice(r.form);
+  } else {
+    el('form-pitch').value=''; el('form-memo').value='';
+    renderFormAdvice(null);
+  }
+  renderFormHistory();
+}
+function renderFormHistory(){
+  var keys = Object.keys(records).filter(function(k){ return records[k] && records[k].form; }).sort().reverse().slice(0,10);
+  if (!keys.length){ el('form-history').innerHTML = '<div class="small">まだ計測メモがありません。</div>'; return; }
+  el('form-history').innerHTML = keys.map(function(k){
+    var f = records[k].form;
+    var line = (f.pitch ? 'ピッチ '+f.pitch+'spm ・ ' : '')+'前傾：'+f.lean+' ・ 着地：'+f.land+'（'+f.pos+'）';
+    var adv = formAdvice(f).join(' ');
+    return '<div class="hist-item"><span class="hdate">'+fmtJP(k)+'</span><br>'+esc(line)+'<br><span class="small">'+esc(adv)+'</span></div>';
+  }).join('');
+}
+
+/* --- 設定・AI相談・提案履歴・バックアップ --- */
+function fillSettings(){
+  el('set-name').value=settings.raceName;
+  el('set-date').value=settings.raceDate;
+  el('set-target').value=settings.targetTime;
+  el('set-easyhr').value=settings.easyAvgHR || '';
+  renderPropHistory();
+  renderAiSummary();
+}
+function renderPropHistory(){
+  if (!proposalsLog.length){ el('prop-history').innerHTML = '<div class="small">まだ提案の履歴がありません。</div>'; return; }
+  el('prop-history').innerHTML = proposalsLog.slice().reverse().slice(0,30).map(function(p){
+    var d = new Date(p.ts);
+    var when = d.getFullYear()+'/'+(d.getMonth()+1)+'/'+d.getDate()+' '+pad2(d.getHours())+':'+pad2(d.getMinutes());
+    return '<div class="hist-item"><span class="hdate">'+when+'</span>　'+(p.decision==='承認'?'<span style="color:var(--ok); font-weight:700">承認</span>':'<span style="color:var(--sub); font-weight:700">却下</span>')+'<br>'+esc(p.title)+'</div>';
+  }).join('');
+}
+function renderAiSummary(){
+  el('ai-summary').value = buildAiSummary(records, settings, todayKey());
+}
+el('btn-ai-refresh').addEventListener('click', function(){ renderAiSummary(); note('note-ai','作り直しました'); });
+el('btn-ai-copy').addEventListener('click', function(){
+  var ta = el('ai-summary');
+  ta.select();
+  function ok(){ note('note-ai','コピーしました。いつものAIアプリに貼ってください'); }
+  if (navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(ta.value).then(ok, function(){ document.execCommand('copy'); ok(); });
+  } else { document.execCommand('copy'); ok(); }
+});
+el('btn-ai-share').addEventListener('click', function(){
+  var text = el('ai-summary').value;
+  if (navigator.share){
+    navigator.share({text:text}).catch(function(){});
+  } else {
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text);
+    note('note-ai','共有機能がないため、コピーしました');
+  }
+});
+el('btn-save-settings').addEventListener('click', function(){
+  settings={raceName:el('set-name').value||DEFAULT_SETTINGS.raceName, raceDate:el('set-date').value||DEFAULT_SETTINGS.raceDate, targetTime:el('set-target').value||DEFAULT_SETTINGS.targetTime, easyAvgHR:el('set-easyhr').value||''};
+  saveJSON(LS_SET, settings);
+  var rw = rawWeekIndex(todayKey(), settings.raceDate);
+  viewWeek = Math.min(Math.max(rw,0), maxViewWeek());
+  note('note-settings','保存しました'); renderAll();
+});
+el('btn-export').addEventListener('click', function(){
+  var blob=new Blob([JSON.stringify({settings:settings, records:records, overrides:overrides, proposals:proposalsLog}, null, 2)], {type:'application/json'});
+  var a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='run-app-backup-'+todayKey().replace(/-/g,'')+'.json';
+  a.click(); setTimeout(function(){ URL.revokeObjectURL(a.href); }, 1000);
+  note('note-data','書き出しました');
+});
+el('btn-import').addEventListener('click', function(){ el('file-import').click(); });
+el('file-import').addEventListener('change', function(){
+  var f=this.files[0]; if (!f) return;
+  var rd=new FileReader();
+  rd.onload=function(){
+    try{
+      var d=JSON.parse(rd.result);
+      if (!d || typeof d!=='object' || !d.settings || !d.records) throw new Error('形式が違います');
+      settings=Object.assign({}, DEFAULT_SETTINGS, d.settings); records=d.records;
+      overrides=d.overrides||{}; proposalsLog=d.proposals||[];
+      saveJSON(LS_SET, settings); saveJSON(LS_REC, records); saveJSON(LS_OVR, overrides); saveJSON(LS_PROP, proposalsLog);
+      fillSettings(); fillRecordForm(el('rec-date').value||todayKey());
+      renderAll();
+      note('note-data','読み込みました');
+    }catch(e){ note('note-data','読み込めませんでした（ファイル形式をご確認ください）'); }
+  };
+  rd.readAsText(f); this.value='';
+});
+
+/* --- タブと遷移 --- */
+function renderAll(){ renderHeader(); renderHome(); renderWeek(); }
+function showTab(name){
+  ['home','week','record','form','settings'].forEach(function(n){
+    el('scr-'+n).className='screen'+(n===name?' active':'');
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('nav.tabs button'), function(b){
+    b.className = b.dataset.tab===name ? 'active' : '';
+  });
+  if (name==='home') renderHome();
+  if (name==='week') renderWeek();
+  if (name==='record') fillRecordForm(el('rec-date').value||todayKey());
+  if (name==='form') fillFormForm(el('form-date').value||todayKey());
+  if (name==='settings') fillSettings();
+  window.scrollTo(0,0);
+}
+Array.prototype.forEach.call(document.querySelectorAll('nav.tabs button'), function(b){
+  b.addEventListener('click', function(){ showTab(b.dataset.tab); });
+});
+el('btn-goto-record').addEventListener('click', function(){
+  el('rec-date').value=todayKey(); showTab('record');
+});
+el('btn-goto-week').addEventListener('click', function(){ showTab('week'); });
+el('wk-prev').addEventListener('click', function(){ if (viewWeek>0){ viewWeek--; renderWeek(); } });
+el('wk-next').addEventListener('click', function(){ if (viewWeek<maxViewWeek()){ viewWeek++; renderWeek(); } });
+
+/* --- 初期化 --- */
+buildRecordControls();
+buildFormControls();
+fillSettings();
+renderAll();
+fillRecordForm(todayKey());
+fillFormForm(todayKey());
+</script>
+</body>
+</html>
