@@ -122,6 +122,11 @@ input[type="range"]{width:100%; accent-color:var(--teal2); height:32px}
 .care-tag{font-size:12px; color:var(--teal); font-weight:400}
 .care-how{font-size:14px; margin-top:2px}
 .care-dose{font-size:13px; color:var(--sub); margin-top:2px}
+.pain-item{display:flex; gap:8px; align-items:flex-start; border-top:1px solid var(--line); padding:8px 0; font-size:14px}
+.pain-item:first-of-type{border-top:none}
+.pain-item .pbody{flex:1}
+.pain-item .pname{font-weight:700}
+.pain-item button{flex:none; padding:6px 10px; font-size:13px}
 .prop-card{border-left:6px solid var(--warn)}
 .prop-card .ptitle{font-weight:700; font-size:16px}
 .prop-card .preason{font-size:13px; color:var(--sub); margin-top:2px}
@@ -243,6 +248,10 @@ video{width:100%; border-radius:12px; background:#000; margin-top:8px}
         <div class="checks" id="pain-flags"></div>
         <label class="flabel">メモ（任意）</label>
         <textarea id="pain-memo" placeholder="路面、シューズ、気付いたことなど"></textarea>
+        <div class="btnrow"><button type="button" class="sub" id="btn-add-pain">この痛みを追加</button></div>
+        <div class="small" id="pain-add-note" style="min-height:18px"></div>
+        <label class="flabel">追加した痛み（同じ日に複数登録できます）</label>
+        <div id="pain-list"></div>
       </div>
       <div class="btnrow"><button id="btn-save-pain">痛みの記録を保存</button></div>
       <div class="saved-note" id="note-pain"></div>
@@ -775,49 +784,129 @@ title: idx.title >= 0 ? String(row[idx.title] || '').trim() : ''
 }
 return {activities: acts, skipped: skipped};
 }
-/* --- 痛み判定（敏感バージョン） --- */
+/* --- 痛み記録（複数部位対応） ---
+   records[k].pains = [{part, side, level, timing[], flags[], memo}] の配列。
+   records[k].painNone = true は「痛みなし」と明示保存した状態。
+   旧形式 records[k].pain（単一）も painsOf 経由で読める（後方互換）。 */
+function normalizePainEntry(e){
+if (!e) return null;
+return {part:e.part||'その他', side:e.side||'右', level:(e.level==null?0:e.level), timing:e.timing||[], flags:e.flags||[], memo:e.memo||''};
+}
+function painsOf(rec){
+if (!rec) return [];
+if (Array.isArray(rec.pains)) return rec.pains.map(normalizePainEntry).filter(Boolean);
+if (rec.pain && !rec.pain.none){
+var n = normalizePainEntry(rec.pain);
+return n ? [n] : [];
+}
+return [];
+}
+function painNoneOf(rec){
+if (!rec) return false;
+if (rec.painNone) return true;
+if (rec.pain && rec.pain.none) return true;
+return false;
+}
+function painRecorded(rec){
+if (!rec) return false;
+if (painNoneOf(rec)) return true;
+if (rec.pain) return true;
+return painsOf(rec).length > 0;
+}
+/* 旧形式 pain を pains / painNone へ移行する（変更があれば true） */
+function migratePainRecords(records){
+var changed = false;
+Object.keys(records||{}).forEach(function(k){
+var rec = records[k];
+if (!rec || typeof rec !== 'object') return;
+if (rec.pain){
+rec.pains = rec.pain.none ? [] : [normalizePainEntry(rec.pain)];
+if (rec.pain.none && rec.painNone === undefined) rec.painNone = true;
+delete rec.pain;
+changed = true;
+}
+});
+return changed;
+}
+/* 直近 days 日の痛みを部位（部位+左右）ごとに集約。代表は最新のエントリ、maxLevel は期間中の最大 */
+function recentPainByPart(records, dateKey, days){
+var byPart = {}, order = [];
+Object.keys(records).sort().forEach(function(k){
+if (k > dateKey || diffDays(dateKey, k) > days) return;
+painsOf(records[k]).forEach(function(e){
+var pk = e.part+'|'+(e.side||'右');
+if (!byPart[pk]){ byPart[pk] = {part:e.part, side:e.side||'右', level:e.level, maxLevel:e.level, dateKey:k}; order.push(pk);}
+else {
+if (k >= byPart[pk].dateKey){ byPart[pk].level = e.level; byPart[pk].dateKey = k; }
+if (e.level > byPart[pk].maxLevel) byPart[pk].maxLevel = e.level;
+}
+});
+});
+return order.map(function(pk){ return byPart[pk]; }).sort(function(a,b){ return b.maxLevel - a.maxLevel; });
+}
+/* --- 痛み判定（敏感バージョン・複数部位対応） ---
+   部位（部位+左右）ごとに評価し、全体の色は最も重いものを採用する。理由には部位名を含める。 */
 function painJudge(records, dateKey){
 var keys = Object.keys(records).filter(function(k){
-return k <= dateKey && records[k] && records[k].pain;
+return k <= dateKey && painRecorded(records[k]);
 }).sort();
 if (!keys.length) return {level:'none', label:'未記録', reasons:['痛みの記録がまだありません']};
 var latestKey = keys[keys.length-1];
 if (diffDays(dateKey, latestKey) > 6) return {level:'none', label:'記録なし', reasons:['直近7日に痛みの記録がありません']};
-var recent = keys.filter(function(k){ return diffDays(dateKey, k) <= 6;});
-var painEntries = recent.filter(function(k){ return!records[k].pain.none;});
-var reasons = [];
-var flagsHit = [];
-painEntries.forEach(function(k){
-(records[k].pain.flags||[]).forEach(function(f){ if (flagsHit.indexOf(f)<0) flagsHit.push(f);});
+var recentKeys = keys.filter(function(k){ return diffDays(dateKey, k) <= 6;});
+/* 部位ごとに直近7日のエントリを集約 */
+var byPart = {}, order = [];
+recentKeys.forEach(function(k){
+painsOf(records[k]).forEach(function(e){
+var pk = e.part+'|'+(e.side||'右');
+if (!byPart[pk]){ byPart[pk] = {part:e.part, side:e.side||'右', events:[]}; order.push(pk);}
+byPart[pk].events.push({dateKey:k, level:e.level, timing:e.timing||[], flags:e.flags||[]});
+});
 });
 var maxLevel = 0;
-painEntries.forEach(function(k){ if (records[k].pain.level > maxLevel) maxLevel = records[k].pain.level;});
-if (flagsHit.length){
-reasons.push('要注意のサインがあります（'+flagsHit.join('・')+'）');
-return {level:'red', label:'赤', reasons:reasons, maxLevel:maxLevel};
-}
-if (maxLevel >= 6){
-reasons.push('痛さ'+maxLevel+'が記録されています（6以上は赤）');
-return {level:'red', label:'赤', reasons:reasons, maxLevel:maxLevel};
-}
-if (!painEntries.length){
+order.forEach(function(pk){
+byPart[pk].events.forEach(function(ev){ if (ev.level > maxLevel) maxLevel = ev.level;});
+});
+/* 赤: 要注意フラグがある部位 */
+var redReasons = [];
+order.forEach(function(pk){
+var g = byPart[pk], flags = [];
+g.events.forEach(function(ev){ (ev.flags||[]).forEach(function(f){ if (flags.indexOf(f)<0) flags.push(f);});});
+if (flags.length) redReasons.push(g.part+'（'+g.side+'）: 要注意のサインがあります（'+flags.join('・')+'）');
+});
+if (redReasons.length) return {level:'red', label:'赤', reasons:redReasons, maxLevel:maxLevel};
+/* 赤: 痛さ6以上の部位 */
+order.forEach(function(pk){
+var g = byPart[pk], m = 0;
+g.events.forEach(function(ev){ if (ev.level > m) m = ev.level;});
+if (m >= 6) redReasons.push(g.part+'（'+g.side+'）: 痛さ'+m+'が記録されています（6以上は赤）');
+});
+if (redReasons.length) return {level:'red', label:'赤', reasons:redReasons, maxLevel:maxLevel};
+if (!order.length){
 return {level:'green', label:'緑', reasons:['直近7日は痛みなしの記録です'], maxLevel:0};
 }
-/* 連続カウント: 新しい順に、痛さ2以上の記録が続く回数（痛みなし記録で止まる） */
+/* 黄: 部位ごとに判定（連続は同じ部位の直近の記録で数える） */
+var yellowReasons = [];
+order.forEach(function(pk){
+var g = byPart[pk], label = g.part+'（'+g.side+'）';
+var evs = g.events.slice().sort(function(a,b){ return a.dateKey < b.dateKey ? 1 : -1;}); /* 新しい順 */
+var latest = evs[0], m = 0;
+evs.forEach(function(ev){ if (ev.level > m) m = ev.level;});
 var consec = 0;
-for (var i=keys.length-1;i>=0;i--){
-var p = records[keys[i]].pain;
-if (!p.none && p.level >= 2) consec++; else break;
-}
-var latestPain = records[painEntries[painEntries.length-1]].pain;
-var yellow = false;
-if (latestPain.level >= 3 && latestPain.level <= 5){ yellow = true; reasons.push('痛さ'+latestPain.level+'が記録されています（3〜5は黄）');}
-if (maxLevel >= 3 && latestPain.level < 3){ yellow = true; reasons.push('直近7日に痛さ'+maxLevel+'の記録があります');}
-if (consec >= 2){ yellow = true; reasons.push('痛さ2以上が'+consec+'回続いています');}
-if ((latestPain.timing||[]).indexOf('翌朝') >= 0){ yellow = true; reasons.push('痛みが翌朝も残っています');}
-if (yellow) return {level:'yellow', label:'黄', reasons:reasons, maxLevel:maxLevel};
-reasons.push('痛さ'+latestPain.level+'で、翌朝までのこる様子はありません');
-return {level:'green', label:'緑', reasons:reasons, maxLevel:maxLevel};
+for (var i=0;i<evs.length;i++){ if (evs[i].level >= 2) consec++; else break;}
+if (latest.level >= 3 && latest.level <= 5) yellowReasons.push(label+': 痛さ'+latest.level+'が記録されています（3〜5は黄）');
+else if (m >= 3 && latest.level < 3) yellowReasons.push(label+': 直近7日に痛さ'+m+'の記録があります');
+if (consec >= 2) yellowReasons.push(label+': 痛さ2以上が'+consec+'回続いています');
+if ((latest.timing||[]).indexOf('翌朝') >= 0) yellowReasons.push(label+': 痛みが翌朝も残っています');
+});
+if (yellowReasons.length) return {level:'yellow', label:'黄', reasons:yellowReasons, maxLevel:maxLevel};
+/* 緑: 部位ごとの最新エントリを要約 */
+var greenReasons = order.map(function(pk){
+var g = byPart[pk];
+var evs = g.events.slice().sort(function(a,b){ return a.dateKey < b.dateKey ? 1 : -1;});
+return g.part+'（'+g.side+'）: 痛さ'+evs[0].level+'で、翌朝までのこる様子はありません';
+});
+return {level:'green', label:'緑', reasons:greenReasons, maxLevel:maxLevel};
 }
 /* --- 疲労シグナル（痛み以外） --- */
 function fmtMDshort(k){ var p = k.split('-'); return (+p[1])+'/'+(+p[2]);}
@@ -982,8 +1071,7 @@ for (var w = Math.max(0, rw-7); w <= rw; w++){
 var dates = weekDates(settings.raceDate, w);
 var maxPain = null;
 dates.forEach(function(k){
-var r = records[k];
-if (r && r.pain &&!r.pain.none){ if (maxPain === null || r.pain.level > maxPain) maxPain = r.pain.level;}
+painsOf(records[k]).forEach(function(e){ if (maxPain === null || e.level > maxPain) maxPain = e.level;});
 });
 out.push({label:(w < TOTAL_WEEKS? '第'+(w+1)+'週': fmtMDshort(dates[0])+'の週'), km:totalPlannedKmForWeek(settings, w), maxPain:maxPain});
 }
@@ -1091,7 +1179,7 @@ else { var p = planFor(k, settings); if (p.km) km += p.km;}
 }
 if (r.post && r.post.rpe) rpes.push(r.post.rpe);
 if (r.am && r.am.sleepH) sleeps.push(r.am.sleepH);
-if (r.pain &&!r.pain.none){ if (maxPain === null || r.pain.level > maxPain) maxPain = r.pain.level;}
+painsOf(r).forEach(function(e){ if (maxPain === null || e.level > maxPain) maxPain = e.level;});
 });
 function avgS(a){ return a.length? Math.round(a.reduce(function(x,y){ return x+y;},0)/a.length*10)/10: null;}
 var seg = '- '+(w < TOTAL_WEEKS? '第'+(w+1)+'週': fmtMDshort(dates[0])+'の週')+'：実施 '+Math.round(km*10)/10+' km（'+runs+'回）';
@@ -1103,6 +1191,11 @@ lines.push(seg);
 var pj = painJudge(records, todayKey);
 lines.push('');
 lines.push('現在の痛みの判定：'+pj.label+'（'+pj.reasons.join('／')+'）');
+var painParts = recentPainByPart(records, todayKey, 7);
+if (painParts.length){
+var listed = painParts.slice(0,3).map(function(g){ return g.part+'（'+g.side+'）: 痛さ'+g.level+'（'+fmtMDshort(g.dateKey)+'）';});
+lines.push('直近7日の痛みの部位：'+listed.join('、')+(painParts.length > 3 ? '、他'+(painParts.length-3)+'部位' : ''));
+}
 var fs = fatigueSignal(records, settings, todayKey);
 lines.push('疲労サイン：'+(fs.level === 'green'? 'なし': fs.reds.concat(fs.yellows).join('／')));
 lines.push('');
@@ -1131,10 +1224,12 @@ function saveJSON(key, v){ try{ localStorage.setItem(key, JSON.stringify(v)); }c
 })();
 var settings = Object.assign({}, DEFAULT_SETTINGS, loadJSON(LS_SET, {}));
 var records = loadJSON(LS_REC, {});
+/* 旧形式の痛み記録（単一部位）があれば複数部位形式へ移行して保存し直す */
+if (migratePainRecords(records)) saveJSON(LS_REC, records);
 var overrides = loadJSON(LS_OVR, {});
 var proposalsLog = loadJSON(LS_PROP, []);
 function todayKey(){ return toKey(new Date()); }
-function recOf(k){ return records[k] || {am:null, post:null, pain:null, act:null, form:null}; }
+function recOf(k){ return records[k] || {am:null, post:null, pains:null, painNone:false, act:null, form:null}; }
 function setRec(k, patch){ records[k]=Object.assign(recOf(k), patch); saveJSON(LS_REC, records); }
 function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
@@ -1290,7 +1385,7 @@ function renderHome(){
   el('today-meta').textContent = meta;
   el('st-am').innerHTML = statusHTML('朝チェック', r.am);
   el('st-post').innerHTML = statusHTML('ラン後チェック', r.post) + (r.act ? '　<span class="done">Garmin取り込み済み</span>' : '');
-  el('st-pain').innerHTML = statusHTML('痛みの記録', r.pain);
+  el('st-pain').innerHTML = statusHTML('痛みの記録', painRecorded(r) ? true : null);
   renderSignals();
   renderProposals();
   renderCorr();
@@ -1354,6 +1449,41 @@ function renderWeek(){
 /* --- 記録フォーム --- */
 var PAIN_PARTS=['脛の内側','脛の前側','膝','アキレス腱','ふくらはぎ','足裏','足首','その他'];
 var PAIN_TIMING=['走っている時','走った後','翌朝','日常動作でも'];
+/* 編集中の痛みリスト（「痛みの記録を保存」でまとめて保存される） */
+var painDraft = [];
+function painEntryLabel(e){
+  var s = e.part+'（'+(e.side||'')+'）痛さ '+e.level;
+  if (e.timing && e.timing.length) s += '／'+e.timing.join('・');
+  if (e.flags && e.flags.length) s += '／要注意：'+e.flags.join('・');
+  return s;
+}
+function renderPainList(){
+  var box = el('pain-list'); if (!box) return;
+  if (!painDraft.length){
+    box.innerHTML = '<div class="small">まだ追加されていません。部位を選んで「この痛みを追加」を押してください。</div>';
+    return;
+  }
+  box.innerHTML = painDraft.map(function(e, i){
+    return '<div class="pain-item"><div class="pbody"><span class="pname">'+esc(painEntryLabel(e))+'</span>'
+      + (e.memo ? '<br><span class="small">'+esc(e.memo)+'</span>' : '') + '</div>'
+      + '<button type="button" class="ghost" data-del="'+i+'">削除</button></div>';
+  }).join('');
+}
+function addPainDraft(){
+  var entry = {part:el('pain-part').value, side:segVal(el('pain-side')), level:parseInt(el('pain-level').value,10), timing:checksVal(el('pain-timing')), flags:checksVal(el('pain-flags')), memo:el('pain-memo').value};
+  var idx = -1;
+  for (var i=0;i<painDraft.length;i++){
+    if (painDraft[i].part === entry.part && (painDraft[i].side||'右') === (entry.side||'右')){ idx = i; break; }
+  }
+  if (idx >= 0){
+    painDraft[idx] = entry;
+    el('pain-add-note').textContent = '同じ部位（'+entry.part+'・'+entry.side+'）が既にあったので、新しい内容に置き換えました';
+  } else {
+    painDraft.push(entry);
+    el('pain-add-note').textContent = entry.part+'（'+entry.side+'）を追加しました。他にもあれば続けて追加できます';
+  }
+  renderPainList();
+}
 function buildRecordControls(){
   var sel=el('am-sleep'); sel.innerHTML='';
   for (var h=3.5; h<=10.001; h+=0.5){
@@ -1368,6 +1498,7 @@ function buildRecordControls(){
   });
   makeSeg(el('pain-none'), ['痛みなし','痛みあり'], '痛みなし', function(v){
     el('pain-fields').style.display = (v==='痛みなし') ? 'none' : '';
+    if (v==='痛みなし'){ painDraft = []; el('pain-add-note').textContent=''; renderPainList(); }
   });
   el('pain-fields').style.display='none';
   var pp=el('pain-part'); pp.innerHTML='';
@@ -1379,6 +1510,13 @@ function buildRecordControls(){
   makeSeg(el('pain-side'), ['左','右','両方'], '右');
   makeChecks(el('pain-timing'), PAIN_TIMING, '');
   makeChecks(el('pain-flags'), PAIN_FLAGS, 'redflag');
+  el('btn-add-pain').addEventListener('click', addPainDraft);
+  el('pain-list').addEventListener('click', function(ev){
+    var b = ev.target;
+    if (!b || !b.dataset || b.dataset.del === undefined) return;
+    var idx = parseInt(b.dataset.del, 10);
+    if (idx >= 0 && idx < painDraft.length){ painDraft.splice(idx, 1); renderPainList(); }
+  });
   el('post-rpe').addEventListener('input', function(){ el('post-rpe-val').textContent=this.value; });
   el('pain-level').addEventListener('input', function(){ el('pain-level-val').textContent=this.value; });
   el('rec-date').value=todayKey();
@@ -1414,23 +1552,18 @@ function fillRecordForm(k){
     segSet(el('post-done'),'実施した'); el('post-rpe').disabled=false;
     el('post-rpe').value=5; el('post-rpe-val').textContent=5; el('post-hr').value='';
   }
-  if (r.pain){
-    if (r.pain.none){
-      segSet(el('pain-none'),'痛みなし'); el('pain-fields').style.display='none';
-      checksSet(el('pain-flags'), []);
-    } else {
-      segSet(el('pain-none'),'痛みあり'); el('pain-fields').style.display='';
-      el('pain-part').value=r.pain.part; segSet(el('pain-side'), r.pain.side||'右');
-      el('pain-level').value=r.pain.level; el('pain-level-val').textContent=r.pain.level;
-      el('pain-memo').value=r.pain.memo||'';
-      checksSet(el('pain-timing'), r.pain.timing||[]);
-      checksSet(el('pain-flags'), r.pain.flags||[]);
-    }
-  } else {
+  painDraft = painsOf(r).map(function(e){ return Object.assign({}, e, {timing:(e.timing||[]).slice(), flags:(e.flags||[]).slice()}); });
+  el('pain-add-note').textContent = '';
+  if (painNoneOf(r) || !painRecorded(r)){
     segSet(el('pain-none'),'痛みなし'); el('pain-fields').style.display='none';
-    el('pain-level').value=2; el('pain-level-val').textContent=2; el('pain-memo').value='';
-    checksSet(el('pain-timing'), []); checksSet(el('pain-flags'), []);
+  } else {
+    segSet(el('pain-none'),'痛みあり'); el('pain-fields').style.display='';
   }
+  /* 入力欄は初期値に戻す（保存済みの内容は下の「追加した痛み」一覧に出る） */
+  segSet(el('pain-side'), '右');
+  el('pain-level').value=2; el('pain-level-val').textContent=2; el('pain-memo').value='';
+  checksSet(el('pain-timing'), []); checksSet(el('pain-flags'), []);
+  renderPainList();
   if (!careUserSet) el('care-part').value = latestPainPart();
   renderCare();
   renderHistory();
@@ -1438,10 +1571,14 @@ function fillRecordForm(k){
 /* --- 部位に合わせたケアの表示 --- */
 var careUserSet = false;
 function latestPainPart(){
-  var keys=Object.keys(records).filter(function(k){
-    var r=records[k]; return r && r.pain && !r.pain.none && r.pain.part;
-  }).sort();
-  return keys.length ? records[keys[keys.length-1]].pain.part : '脛の内側';
+  /* ケアのデフォルト部位：全記録の中で最も痛さが大きい部位（同点なら新しい日付を優先） */
+  var best = null;
+  Object.keys(records).sort().forEach(function(k){
+    painsOf(records[k]).forEach(function(e){
+      if (!best || e.level > best.level || (e.level === best.level && k >= best.dateKey)) best = {part:e.part, level:e.level, dateKey:k};
+    });
+  });
+  return best ? best.part : '脛の内側';
 }
 function renderCare(){
   var sel = el('care-part'); if (!sel) return;
@@ -1470,7 +1607,7 @@ function gotoCare(){
 }
 function renderHistory(){
   var keys=Object.keys(records).filter(function(k){
-    var r=records[k]; return r.am||r.post||r.pain||r.act;
+    var r=records[k]; return r.am||r.post||painRecorded(r)||r.act;
   }).sort().reverse().slice(0,14);
   if (!keys.length){ el('history').innerHTML='<div class="small">まだ記録がありません。</div>'; return; }
   el('history').innerHTML = keys.map(function(k){
@@ -1478,7 +1615,10 @@ function renderHistory(){
     if (r.am) lines.push('朝：睡眠 '+r.am.sleepH+'時間（'+r.am.quality+'）／体調 '+r.am.cond);
     if (r.act) lines.push('実績（'+(r.act.source||'取り込み')+'）：'+r.act.km+' km'+(r.act.mins?' ・ '+r.act.mins+'分 ・ '+paceStr(r.act.mins, r.act.km):'')+(r.act.avgHR?' ・ 平均心拍 '+r.act.avgHR+'bpm':'')+(r.act.cadence?' ・ ピッチ '+r.act.cadence+'spm':''));
     if (r.post) lines.push('ラン後：'+(r.post.done?('実施、きつさ '+(r.post.rpe==null?'—':r.post.rpe)+(r.post.avgHR?'、平均心拍 '+r.post.avgHR+'bpm':'')):'未実施'));
-    if (r.pain) lines.push(r.pain.none ? '痛み：なし' : '痛み：'+r.pain.part+'（'+(r.pain.side||'')+'）痛さ '+r.pain.level+(r.pain.timing&&r.pain.timing.length?'／'+r.pain.timing.join('・'):'')+(r.pain.flags&&r.pain.flags.length?'／要注意：'+r.pain.flags.join('・'):''));
+    if (painRecorded(r)){
+      if (painNoneOf(r)) lines.push('痛み：なし');
+      else painsOf(r).forEach(function(e){ lines.push('痛み：'+painEntryLabel(e)); });
+    }
     return '<div class="hist-item"><span class="hdate">'+fmtJP(k)+'</span><br>'+lines.map(esc).join('<br>')+'</div>';
   }).join('');
 }
@@ -1500,9 +1640,14 @@ el('btn-save-post').addEventListener('click', function(){
 el('btn-save-pain').addEventListener('click', function(){
   var k=el('rec-date').value||todayKey();
   if (segVal(el('pain-none'))==='痛みなし'){
-    setRec(k, {pain:{none:true, flags:[]}});
+    painDraft = [];
+    setRec(k, {pains:[], painNone:true});
   } else {
-    setRec(k, {pain:{none:false, part:el('pain-part').value, side:segVal(el('pain-side')), level:parseInt(el('pain-level').value,10), timing:checksVal(el('pain-timing')), flags:checksVal(el('pain-flags')), memo:el('pain-memo').value}});
+    if (!painDraft.length){
+      note('note-pain','先に「この痛みを追加」を押してください（痛みがなければ「痛みなし」を選んでください）');
+      return;
+    }
+    setRec(k, {pains:painDraft.map(function(e){ return Object.assign({}, e, {timing:(e.timing||[]).slice(), flags:(e.flags||[]).slice()}); }), painNone:false});
   }
   note('note-pain','保存しました'); renderAll(); fillRecordForm(k);
 });
@@ -1745,6 +1890,7 @@ el('file-import').addEventListener('change', function(){
       var d=JSON.parse(rd.result);
       if (!d || typeof d!=='object' || !d.settings || !d.records) throw new Error('形式が違います');
       settings=Object.assign({}, DEFAULT_SETTINGS, d.settings); records=d.records;
+      migratePainRecords(records); /* 旧形式バックアップの痛み記録も複数部位形式へ移行 */
       overrides=d.overrides||{}; proposalsLog=d.proposals||[];
       saveJSON(LS_SET, settings); saveJSON(LS_REC, records); saveJSON(LS_OVR, overrides); saveJSON(LS_PROP, proposalsLog);
       fillSettings(); fillRecordForm(el('rec-date').value||todayKey());
